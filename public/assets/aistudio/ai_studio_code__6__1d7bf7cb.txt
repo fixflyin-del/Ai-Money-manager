@@ -1,0 +1,143 @@
+Build a complete, production-grade, full-stack financial application and native Android app called "AI Money Manager" from scratch. 
+
+Brand & Entity: FixFly (Canonical Domain: https://aimoney.fixfly.in, Android Package: com.aimoneymanager.app).
+
+Please implement the entire application completely with clean, modular TypeScript, React 19, Tailwind CSS v4, Node.js Express, Firebase, and Android Native (Java/Gradle). Do not use placeholders or unfinished code.
+
+================================================================================
+1. DESIGN SYSTEM & UI/UX SPECIFICATIONS
+================================================================================
+- Theme: Ultra-modern fintech dark theme.
+  - Background: Deep Obsidian / Slate (#0F172A and #020617)
+  - Cards & Containers: Polished Navy (#1E293B) with subtle borders (#334155)
+  - Primary / Brand Accent: Emerald Green (#10B981) for wealth & income, Indigo/Violet (#6366F1) for Pro features
+  - Negative / Alert Accent: Rose Red (#F43F5E) for expenses & budget overruns
+  - Typography: Clean sans-serif (Inter / Plus Jakarta Sans) with JetBrains Mono for monetary numbers.
+- Responsive Layout:
+  - Mobile: Fixed bottom navigation bar (Dashboard, Transactions, Analytics, Budgets, Settings) + floating quick-add (+) action button.
+  - Desktop: Collapsible sidebar navigation with top search and user profile bar.
+- Iconography: Lucide-react icons throughout.
+- Charts: Interactive Recharts (Expense Breakdown Donut, Monthly Cashflow Bar Chart, Net Worth Area Trend).
+
+================================================================================
+2. CORE APPLICATION FEATURES
+================================================================================
+1. Multi-Account Management:
+   - Support for Cash, Bank Accounts, Credit Cards, UPI, Savings Wallets.
+   - Live balance tracking, inter-account transfers, and account reconciliation.
+
+2. Transaction Engine:
+   - Record Income, Expense, and Account Transfer.
+   - Fields: Amount, Multi-Currency (INR ₹ default, USD $, EUR €, GBP £, etc.), Category, Subcategory, Date, Account, Payment Mode, Notes, Tags, and Receipt Attachment.
+   - Advanced filters: Date range picker, search, category filter, account filter.
+
+3. Smart Budgets & Alerts:
+   - Set monthly spending limits per category (e.g. Food, Travel, Shopping).
+   - Visual progress bars with color warnings: Green (<80%), Amber (80-99%), Red (>=100%).
+   - Projected end-of-month spending velocity calculation.
+
+4. Savings Goals Tracker:
+   - Target amount, target deadline, automated progress calculation, and one-tap deposit logging.
+
+5. Recurring Bills & Subscriptions:
+   - Schedule daily, weekly, monthly, or yearly recurring expenses.
+   - Auto-reminders and upcoming bill timeline.
+
+6. Gemini AI Receipt Scanner & Voice Expense Logger:
+   - Multimodal Receipt Scanner: Users upload a receipt photo. Gemini 2.5 Flash extracts Merchant, Date, Total Amount, Tax, and Category into structured JSON.
+   - Voice Logger: Users can speak ("Paid 450 rupees for lunch with UPI"), and Gemini parses it into a structured transaction.
+
+7. AI Financial Advisor:
+   - Interactive financial health score, spending anomaly detection, and actionable savings advice.
+
+8. Data Export & Backup:
+   - Beautiful PDF statement generation using jsPDF & autoTable.
+   - Excel export & import (.xlsx).
+   - Full encrypted JSON local backup and restore.
+
+9. Security & Access:
+   - 4-digit PIN lock screen with optional biometric authentication.
+   - Auto-lock on idle or app backgrounding.
+
+10. Hybrid Storage Model (Cloud Sync vs Device-Only Local):
+   - Users can choose either "Google Cloud Sync (Firestore)" or "Offline Local Storage (IndexedDB/LocalStorage)".
+   - One-tap migration from Local to Cloud when the user signs in.
+
+================================================================================
+3. BACKEND SERVER & API PROXY (server.ts)
+================================================================================
+- Node.js Express server listening on PORT (default 3000):
+  - Mount Vite dev middleware in development (`vite.middlewares`).
+  - Serve static `dist` bundle in production.
+  - `/api/ai/scan-receipt`: Server-side proxy calling `@google/genai` (Gemini 2.5 Flash) with API keys kept secret on the server.
+  - `/api/ai/advice`: Endpoint for AI financial queries and insights.
+  - `/api/payu/*`: Web subscription order creation and verification.
+  - CORS Middleware: Explicitly allow requests from `https://aimoney.fixfly.in`, `https://appassets.androidplatform.net`, and localhost.
+
+================================================================================
+4. FIREBASE AUTH & FIRESTORE SCHEMA
+================================================================================
+- Authentication:
+  - Google Sign-In (Direct SDK popup for Web, Custom Tabs + Deep Link `aimoney://oauth` for Android).
+  - Email & Password Sign-In / Sign-Up.
+  - Guest / Offline mode without sign-in.
+- Firestore Schema:
+  - `/users/{userId}`: User profile, settings, currency, and Pro status.
+  - `/users/{userId}/transactions/{id}`: All user transactions.
+  - `/users/{userId}/budgets/{id}`: Budget thresholds and limits.
+  - `/users/{userId}/goals/{id}`: Savings targets.
+  - `/users/{userId}/recurring/{id}`: Recurring bills.
+  - `/users/{userId}/accounts/{id}`: Accounts and balances.
+- Firestore Security Rules: Strict user-isolation rules ensuring users can only read and write their own data (`request.auth.uid == userId`).
+
+================================================================================
+5. ANDROID NATIVE ARCHITECTURE (Fixing the Blank Screen & Play Billing)
+================================================================================
+- Android Project Settings:
+  - Application ID: `com.aimoneymanager.app`
+  - Version Code: 10, Version Name: "6.1.0"
+  - Min SDK: 24, Target SDK: 36, Compile SDK: 36
+  - Dependencies: `androidx.webkit:webkit:1.12.1`, `com.android.billingclient:billing:7.1.1`, `androidx.browser:browser:1.8.0`.
+
+- CRITICAL: Blank Dark Screen Prevention (ES Module / CORS):
+  - Do NOT load local files via `file:///android_asset/` as modern Chromium WebViews block React 19 ES module scripts with CORS errors.
+  - In `MainActivity.java`, implement `androidx.webkit.WebViewAssetLoader`:
+    - Configure domain: `appassets.androidplatform.net`.
+    - Load URL: `https://appassets.androidplatform.net/assets/www/index.html`.
+    - In `WebViewClient.shouldInterceptRequest()`, delegate to `assetLoader.shouldInterceptRequest(uri)`.
+    - Provide fallback interceptor for root-relative asset requests (`/assets/...`, `/icon.svg`, `/manifest.webmanifest`, `/pwa-*.png`) returning proper MIME types and `Access-Control-Allow-Origin: *` headers.
+    - Implement error logging for `onReceivedError`, `onReceivedHttpError`, and `WebChromeClient.onConsoleMessage`.
+
+- JavaScript Native Bridge (`MoneyFlowNative`):
+  Expose Java methods to `window.MoneyFlowNative`:
+  - `isAndroidApk()`: returns true.
+  - `getCloudUrl()`: returns `https://aimoney.fixfly.in`.
+  - `openExternalUrl(url)`: launches external browser.
+  - `openAuthCustomTab(url)`: launches Chrome Custom Tab for OAuth with callback to scheme `aimoney://oauth`.
+  - `saveBase64File(filename, mimeType, base64)`: writes files directly to Android Downloads via MediaStore.
+  - `launchPlayBillingPurchase(reqId, productId, type, accountId)`: opens Google Play purchase bottom sheet.
+  - `restorePlayBillingPurchases(reqId)`: restores previous purchases.
+  - `queryProducts(reqId)`: retrieves localized pricing from Google Play.
+
+- Google Play Billing Library 7.1.1 (`PlayBillingManager.java`):
+  - Manage BillingClient lifecycle with auto-reconnect.
+  - Handle subscriptions (`aimoney_pro_monthly`, `aimoney_pro_yearly`) and one-time product (`aimoney_pro_lifetime`).
+  - Auto-acknowledge purchases via `acknowledgePurchase` and notify React frontend.
+
+- Android Manifest (`AndroidManifest.xml`):
+  - Permissions required:
+    `<uses-permission android:name="com.android.vending.BILLING" />`
+    `<uses-permission android:name="com.android.vending.CHECK_LICENSE" />`
+    `<uses-permission android:name="android.permission.INTERNET" />`
+    `<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />`
+    `<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />`
+    `<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />`
+  - Register deep-link scheme `aimoney://oauth` on `MainActivity`.
+
+================================================================================
+6. DELIVERABLES
+================================================================================
+1. Fully working React 19 + Tailwind CSS frontend with all 5 main screens (Dashboard, Transactions, Analytics, Budgets/Goals, Settings).
+2. Complete Express server (`server.ts`) with Gemini AI integration.
+3. Complete native Android project folder (`/android`) with `MainActivity.java`, `MoneyFlowBridge.java`, `PlayBillingManager.java`, and `AndroidManifest.xml`.
+4. Production build script that builds the web app, copies assets into `android/app/src/main/assets/www/`, and compiles the signed release APK and signed Play Store AAB.

@@ -1,0 +1,6 @@
+{
+  "name": "AI Money Manager — FixFly",
+  "description": "Smart multi-currency personal finance tracker, receipt scanner, budget planner, and wealth manager with Android native app and global subscription engine.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

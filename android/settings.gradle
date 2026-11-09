@@ -1,0 +1,2 @@
+rootProject.name = 'AI Money Manager'
+include ':app'
