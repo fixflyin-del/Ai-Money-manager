@@ -29,6 +29,7 @@ export interface CategoryItem {
   type: 'income' | 'expense';
   icon: string;
   color: string;
+  isDefault?: boolean;
 }
 
 export const DEFAULT_CATEGORIES: CategoryItem[] = [
@@ -345,9 +346,57 @@ export class StorageService {
     return newCat;
   }
 
-  static deleteCategory(id: string): void {
-    const list = this.getCategories().filter((c) => c.id !== id);
-    this.saveCategories(list);
+  static updateCategory(updatedCat: CategoryItem): void {
+    const list = this.getCategories();
+    const oldCat = list.find((c) => c.id === updatedCat.id);
+    const updatedList = list.map((c) => (c.id === updatedCat.id ? updatedCat : c));
+    this.saveCategories(updatedList);
+
+    // If category name changed, update historical transactions to maintain consistency
+    if (oldCat && oldCat.name !== updatedCat.name) {
+      const transactions = this.getTransactions();
+      let hasChanges = false;
+      const updatedTxs = transactions.map((tx) => {
+        if (tx.category === oldCat.name) {
+          hasChanges = true;
+          return { ...tx, category: updatedCat.name };
+        }
+        return tx;
+      });
+      if (hasChanges) {
+        this.saveTransactions(updatedTxs);
+      }
+    }
+  }
+
+  static getTransactionsUsingCategory(categoryName: string): Transaction[] {
+    const transactions = this.getTransactions();
+    return transactions.filter((tx) => tx.category === categoryName);
+  }
+
+  static deleteCategory(id: string, fallbackCategory: string = 'General'): { success: boolean; reassignedCount: number } {
+    const list = this.getCategories();
+    const target = list.find((c) => c.id === id);
+    if (!target) return { success: false, reassignedCount: 0 };
+
+    // Check historical transactions referencing this category
+    const transactions = this.getTransactions();
+    let reassignedCount = 0;
+    const updatedTxs = transactions.map((tx) => {
+      if (tx.category === target.name) {
+        reassignedCount++;
+        return { ...tx, category: fallbackCategory };
+      }
+      return tx;
+    });
+
+    if (reassignedCount > 0) {
+      this.saveTransactions(updatedTxs);
+    }
+
+    const filtered = list.filter((c) => c.id !== id);
+    this.saveCategories(filtered);
+    return { success: true, reassignedCount };
   }
 
   // --- Budgets ---

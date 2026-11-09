@@ -17,14 +17,15 @@ import {
   Check,
   Search,
   Play,
-  RotateCcw,
+  LogOut,
   ShieldCheck,
-  Clock,
+  Laptop,
 } from 'lucide-react';
 import { CurrencyCode, SUPPORTED_CURRENCIES, Transaction, Account, UserProfile } from '../types/finance';
 import { convertCurrency, formatCurrency, getCachedRates, getCurrencyInfo } from '../services/currencyService';
 import { ExportService } from '../services/exportService';
 import { StorageService } from '../services/storageService';
+import { AuthService } from '../services/firebase';
 
 interface ProfileScreenProps {
   profile: UserProfile;
@@ -34,6 +35,7 @@ interface ProfileScreenProps {
   onUpdateProfile: (updated: UserProfile) => void;
   onOpenUpgrade: () => void;
   onOpenGoogleSignIn: () => void;
+  onSignOut?: () => void;
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
@@ -44,6 +46,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onUpdateProfile,
   onOpenUpgrade,
   onOpenGoogleSignIn,
+  onSignOut,
 }) => {
   const prefCurrency = profile.preferredCurrency;
   const rates = getCachedRates();
@@ -81,14 +84,23 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     setTimeout(() => setSaveSuccess(false), 2500);
   };
 
-  const handleToggleDarkMode = () => {
-    const isDark = !profile.darkModeEnabled;
-    const updated = { ...profile, darkModeEnabled: isDark };
+  const handleToggleTheme = (mode: 'light' | 'dark' | 'system') => {
+    let isDark = mode === 'dark';
+    if (mode === 'system') {
+      isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
     if (isDark) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+
+    const updated: UserProfile = {
+      ...profile,
+      darkModeEnabled: isDark,
+      themeMode: mode,
+    };
     StorageService.saveUserProfile(updated);
     onUpdateProfile(updated);
   };
@@ -98,6 +110,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     onUpdateProfile(updated);
     setCurrencySuccess(true);
     setTimeout(() => setCurrencySuccess(false), 2000);
+  };
+
+  const handleAuthSignOut = async () => {
+    await AuthService.signOut();
+    const updated: UserProfile = {
+      ...profile,
+      storageMode: 'local',
+      firebaseUid: undefined,
+      email: '',
+    };
+    StorageService.saveUserProfile(updated);
+    onUpdateProfile(updated);
+    if (onSignOut) onSignOut();
   };
 
   const runMasterVerificationSuite = async () => {
@@ -179,36 +204,48 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       c.symbol.includes(currencySearch)
   );
 
+  const isAuthenticated = profile.storageMode === 'cloud' || Boolean(profile.firebaseUid);
+
   return (
-    <div className="max-w-md mx-auto px-4 py-4 pb-28 space-y-4">
+    <div className="max-w-md md:max-w-5xl mx-auto px-4 py-4 pb-28 space-y-5">
       {/* 1. Main Profile Card (Screenshot 5) */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
         {/* Top Header Row with Avatar & Status */}
         <div className="flex items-start gap-3.5">
           {/* Avatar with Camera badge */}
-          <div className="w-14 h-14 rounded-2xl bg-[#0B1528] flex items-center justify-center text-white text-xl font-extrabold shrink-0 relative shadow-xs">
-            <span>{initialLetter}</span>
+          <div className="w-14 h-14 rounded-2xl bg-[#0B1528] dark:bg-blue-600 flex items-center justify-center text-white text-xl font-extrabold shrink-0 relative shadow-xs overflow-hidden">
+            {profile.photoUrl ? (
+              <img src={profile.photoUrl} alt={profile.name} className="w-full h-full object-cover" />
+            ) : (
+              <span>{initialLetter}</span>
+            )}
             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-slate-900 border border-white flex items-center justify-center text-white">
               <Camera className="w-3 h-3 text-slate-300" />
             </div>
           </div>
 
           <div className="min-w-0 flex-1">
-            <h3 className="text-base font-extrabold text-[#0B1528] tracking-tight truncate">
+            <h3 className="text-base font-extrabold text-[#0B1528] dark:text-white tracking-tight truncate">
               {profile.name}
             </h3>
-            <div className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">
-              {profile.storageMode === 'cloud'
-                ? 'Google Account Connected'
-                : 'Offline Device Mode (Not connected to Google)'}
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5 truncate">
+              {isAuthenticated ? (
+                <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                  Google/Firebase Sync ({profile.email || 'Cloud Linked'})
+                </span>
+              ) : (
+                'Offline Device Mode (Not connected to Google)'
+              )}
             </div>
-            <div className="text-[11px] text-emerald-600 font-medium leading-tight mt-0.5">
-              Stored Locally on Android · Sign in with Google anytime to sync
+            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium leading-tight mt-0.5">
+              {isAuthenticated
+                ? 'Secured with Cloud Firestore & Realtime Isolation'
+                : 'Stored Locally on Android · Sign in with Google anytime to sync'}
             </div>
 
             <button
               onClick={onOpenUpgrade}
-              className="text-[11px] font-bold text-amber-600 flex items-center gap-1 mt-1 cursor-pointer hover:underline"
+              className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1 cursor-pointer hover:underline"
             >
               <Crown className="w-3 h-3 text-amber-500" />
               <span>
@@ -218,46 +255,73 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons: Dark Mode & Sign in with Google (Screenshot 5) */}
+        {/* Action Buttons: Dark Mode & Sign In / Out */}
         <div className="grid grid-cols-2 gap-3 pt-1">
-          <button
-            onClick={handleToggleDarkMode}
-            className="border border-slate-200/90 rounded-xl py-2 px-3 text-xs font-bold text-slate-800 bg-white hover:bg-slate-50 flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs"
-          >
-            {profile.darkModeEnabled ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-700" />}
-            <span>{profile.darkModeEnabled ? 'Light Mode' : 'Dark Mode'}</span>
-          </button>
+          <div className="flex bg-[#EEF2F6] dark:bg-slate-800 p-0.5 rounded-xl text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => handleToggleTheme('light')}
+              className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition ${
+                !profile.darkModeEnabled ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-500'
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5 text-amber-500" />
+              <span>Light</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleTheme('dark')}
+              className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition ${
+                profile.darkModeEnabled ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold' : 'text-slate-500'
+              }`}
+            >
+              <Moon className="w-3.5 h-3.5 text-blue-500" />
+              <span>Dark</span>
+            </button>
+          </div>
 
-          <button
-            onClick={onOpenGoogleSignIn}
-            className="bg-[#0B1528] hover:bg-[#111e38] text-white py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
-          >
-            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span className="truncate">Sign in with Google</span>
-          </button>
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={handleAuthSignOut}
+              className="border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs hover:bg-rose-100 transition cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenGoogleSignIn}
+              className="bg-[#0B1528] dark:bg-blue-600 hover:bg-[#111e38] text-white py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span className="truncate">Sign in / Register</span>
+            </button>
+          )}
         </div>
 
         {/* Form Fields: Your Name, Mobile Number, Backup Schedule (Screenshot 5) */}
-        <form onSubmit={handleSaveProfile} className="space-y-3.5 pt-2 border-t border-slate-100">
+        <form onSubmit={handleSaveProfile} className="space-y-3.5 pt-2 border-t border-slate-100 dark:border-slate-800">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
               Your Name (Shown in Top Header)
             </label>
             <input
@@ -266,34 +330,33 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               value={nameInput}
               onChange={(e) => {
                 setNameInput(e.target.value);
-                // Dynamically update profile name so header reflects it immediately!
                 const updated = { ...profile, name: e.target.value };
                 onUpdateProfile(updated);
               }}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-500 shadow-2xs"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-2xs"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
               Mobile Number
             </label>
             <input
               type="text"
               value={mobileInput}
               onChange={(e) => setMobileInput(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-500 shadow-2xs font-mono"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-2xs font-mono"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
               Automatic Backup Schedule
             </label>
             <select
               value={backupSchedule}
               onChange={(e) => setBackupSchedule(e.target.value as any)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer"
             >
               <option value="daily">Daily Automatic Backup</option>
               <option value="weekly">Weekly Automatic Backup</option>
@@ -302,7 +365,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </div>
 
           {saveSuccess && (
-            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>Profile & Header updated successfully!</span>
             </div>
@@ -310,7 +373,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-[#0B1528] hover:bg-[#111e38] text-white font-bold text-xs shadow-md active:scale-[0.99] transition cursor-pointer"
+            className="w-full py-3 rounded-xl bg-[#0B1528] dark:bg-blue-600 hover:bg-[#111e38] text-white font-bold text-xs shadow-md active:scale-[0.99] transition cursor-pointer"
           >
             Save Profile & Settings
           </button>
@@ -318,25 +381,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       </div>
 
       {/* 2. Export Financial Statements Card (Screenshot 5) */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-3.5">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
             <Download className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-extrabold text-[#0B1528]">
+            <h3 className="text-sm font-extrabold text-[#0B1528] dark:text-white">
               Export Financial Statements
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
               Download your complete ledger ({transactions.length} total entries) directly to your Downloads folder in PDF, CSV, or Excel format.
             </p>
           </div>
         </div>
 
         {/* Consolidated Balance Row */}
-        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-600">Consolidated Balance</span>
-          <span className="text-sm font-extrabold font-mono-numbers text-slate-900">
+        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Consolidated Balance</span>
+          <span className="text-sm font-extrabold font-mono-numbers text-slate-900 dark:text-white">
             {formatCurrency(totalBalance, prefCurrency)}
           </span>
         </div>
@@ -345,7 +408,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <div className="grid grid-cols-2 gap-3 pt-1">
           <button
             onClick={() => ExportService.generatePdfStatement(transactions, accounts, profile)}
-            className="p-2.5 rounded-xl bg-[#0B1528] hover:bg-[#111e38] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+            className="p-2.5 rounded-xl bg-[#0B1528] dark:bg-blue-600 hover:bg-[#111e38] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5 text-emerald-400" />
             <span>Download PDF</span>
@@ -353,27 +416,27 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
           <button
             onClick={() => ExportService.exportExcelSheet(transactions, accounts, profile)}
-            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+            className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             <span>Download Excel</span>
           </button>
         </div>
       </div>
 
       {/* 3. Dedicated Currency Settings Card (Master Requirements) */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Globe2 className="w-5 h-5 text-blue-600" />
-            <h3 className="text-sm font-extrabold text-[#0B1528]">Display Currency Settings</h3>
+            <Globe2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h3 className="text-sm font-extrabold text-[#0B1528] dark:text-white">Display Currency Settings</h3>
           </div>
-          <span className="text-xs font-bold text-emerald-600 font-mono">
+          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
             Active: {prefCurrency} ({getCurrencyInfo(prefCurrency).symbol})
           </span>
         </div>
 
-        <p className="text-xs text-slate-500 leading-relaxed">
+        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
           Select your preferred display currency. Original amounts and currencies are never modified.
         </p>
 
@@ -385,12 +448,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             value={currencySearch}
             onChange={(e) => setCurrencySearch(e.target.value)}
             placeholder="Search INR, USD, EUR, GBP, AED, SAR..."
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-blue-500"
+            className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
           />
         </div>
 
         {/* 10 Supported Currencies */}
-        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1">
           {filteredCurrencies.map((c) => {
             const isSel = selectedCurrency === c.code;
             return (
@@ -399,8 +462,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 onClick={() => setSelectedCurrency(c.code)}
                 className={`p-2.5 rounded-xl text-left border text-xs font-bold flex items-center justify-between transition cursor-pointer ${
                   isSel
-                    ? 'bg-blue-50 border-blue-500 text-blue-700'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-700 dark:text-blue-300'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <div className="flex items-center gap-1.5 truncate">
@@ -413,21 +476,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           })}
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
           <span className="text-[11px] text-slate-400">
             Rates updated: {new Date(rates.lastUpdated).toLocaleTimeString()}
           </span>
 
           <button
             onClick={handleApplyCurrency}
-            className="px-4 py-2 rounded-xl bg-[#0B1528] text-white font-bold text-xs shadow-xs"
+            className="px-4 py-2 rounded-xl bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs shadow-xs"
           >
             Apply {selectedCurrency}
           </button>
         </div>
 
         {currencySuccess && (
-          <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-bold flex items-center gap-1">
+          <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 text-xs text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Display currency updated!</span>
           </div>
@@ -435,17 +498,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       </div>
 
       {/* 4. Automated 10-Scenario Test Suite */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-emerald-600" />
-            <h3 className="text-sm font-extrabold text-[#0B1528]">Multi-Currency Verification</h3>
+            <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-sm font-extrabold text-[#0B1528] dark:text-white">Multi-Currency Verification</h3>
           </div>
 
           <button
             onClick={runMasterVerificationSuite}
             disabled={isRunningTests}
-            className="py-1.5 px-3 rounded-xl bg-[#0B1528] text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer"
+            className="py-1.5 px-3 rounded-xl bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer"
           >
             <Play className="w-3.5 h-3.5" />
             <span>{isRunningTests ? 'Testing...' : 'Run All 10 Tests'}</span>
@@ -453,18 +516,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </div>
 
         {testResults && (
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs flex items-center justify-between">
+          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-between">
               <span>All 10 Master Scenarios Passed</span>
               <span className="font-mono">10 / 10 PASS</span>
             </div>
-            <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto text-xs">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-48 overflow-y-auto text-xs">
               {testResults.map((t) => (
                 <div key={t.id} className="py-2 flex items-start gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                   <div>
-                    <div className="font-bold text-slate-800">Scenario {t.id}: {t.scenario}</div>
-                    <div className="text-[11px] text-slate-500 font-mono mt-0.5">{t.assertion}</div>
+                    <div className="font-bold text-slate-800 dark:text-slate-200">Scenario {t.id}: {t.scenario}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">{t.assertion}</div>
                   </div>
                 </div>
               ))}

@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information, settings, theme, and subscription status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "mobileNumber": { "type": "string", "maxLength": 30 },
+        "preferredCurrency": { "type": "string", "maxLength": 10 },
+        "storageMode": { "type": "string", "enum": ["local", "cloud"] },
+        "themeMode": { "type": "string", "enum": ["light", "dark", "system"] },
+        "darkModeEnabled": { "type": "boolean" },
+        "isPro": { "type": "boolean" },
+        "planName": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "email", "preferredCurrency"]
+    },
+    "Account": {
+      "title": "Account",
+      "description": "Financial accounts owned by the user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "maxLength": 30 },
+        "balance": { "type": "number" },
+        "openingPosition": { "type": "number" },
+        "adjustments": { "type": "number" },
+        "netTransfers": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "color": { "type": "string", "maxLength": 30 },
+        "icon": { "type": "string", "maxLength": 50 },
+        "archived": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "name", "type", "currency", "balance"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Income or expense categories",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "icon": { "type": "string", "maxLength": 50 },
+        "color": { "type": "string", "maxLength": 30 },
+        "isDefault": { "type": "boolean" }
+      },
+      "required": ["id", "userId", "name", "type", "icon", "color"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Recorded financial transaction entries",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "accountId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "type": { "type": "string", "enum": ["income", "expense", "transfer"] },
+        "category": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 255 },
+        "date": { "type": "string", "maxLength": 30 },
+        "paymentMode": { "type": "string", "maxLength": 50 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "accountId", "amount", "currency", "type", "date"]
+    },
+    "AiDailyUsage": {
+      "title": "AiDailyUsage",
+      "description": "Daily AI chat question tracking per user for quota enforcement",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 20 },
+        "questionsCount": { "type": "number" },
+        "lastQuestionAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["userId", "date", "questionsCount"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile and settings document"
+    },
+    "/users/{userId}/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "User financial account records"
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Custom and standard categories"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Financial transactions in ledger"
+    },
+    "/users/{userId}/ai_usage/{usageDate}": {
+      "schema": "AiDailyUsage",
+      "description": "Daily AI usage record for quota enforcement"
+    }
+  }
+}

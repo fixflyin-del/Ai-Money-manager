@@ -10,12 +10,15 @@ import {
   UserProfile,
 } from './types/finance';
 import { StorageService, CategoryItem } from './services/storageService';
-import { convertCurrency, fetchLiveRates, getCachedRates } from './services/currencyService';
+import { convertCurrency, fetchLiveRates, getCachedRates, formatCurrency } from './services/currencyService';
+import { AuthService } from './services/firebase';
+import { CloudFirestoreService } from './services/cloudFirestoreService';
 
-// Original Components
+// Components
 import { SplashScreen } from './components/SplashScreen';
 import { WelcomeModal } from './components/WelcomeModal';
 import { HeaderAndDrawer, NavTab } from './components/HeaderAndDrawer';
+import { DesktopSidebar } from './components/DesktopSidebar';
 import { BottomNav } from './components/BottomNav';
 import { HomeScreen } from './components/HomeScreen';
 import { ManageScreen } from './components/ManageScreen';
@@ -27,6 +30,7 @@ import { PremiumModal } from './components/PremiumModal';
 import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 import { PinLockModal } from './components/PinLockModal';
 import { AdminPanel } from './components/AdminPanel';
+import { Sun, Moon, User, Bell } from 'lucide-react';
 
 export default function App() {
   // App State
@@ -92,6 +96,60 @@ export default function App() {
     };
   }, []);
 
+  // Real Firebase onAuthStateChanged listener for seamless session sync
+  useEffect(() => {
+    const unsubscribe = AuthService.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          // Check if cloud profile exists
+          const cloudProf = await CloudFirestoreService.getUserProfile(firebaseUser.uid);
+          if (cloudProf) {
+            setProfile(cloudProf);
+            StorageService.saveUserProfile(cloudProf);
+          } else {
+            // Seed profile to cloud
+            const newProf: UserProfile = {
+              ...StorageService.getUserProfile(),
+              firebaseUid: firebaseUser.uid,
+              name: firebaseUser.displayName || 'FixFly User',
+              email: firebaseUser.email || '',
+              photoUrl: firebaseUser.photoURL || undefined,
+              storageMode: 'cloud',
+            };
+            await CloudFirestoreService.saveUserProfile(newProf);
+            setProfile(newProf);
+            StorageService.saveUserProfile(newProf);
+          }
+
+          // Fetch cloud accounts, categories, transactions
+          const cloudAccounts = await CloudFirestoreService.getAccounts(firebaseUser.uid);
+          if (cloudAccounts.length > 0) {
+            setAccounts(cloudAccounts);
+            localStorage.setItem('aimm_accounts', JSON.stringify(cloudAccounts));
+          }
+
+          const cloudTx = await CloudFirestoreService.getTransactions(firebaseUser.uid);
+          if (cloudTx.length > 0) {
+            setTransactions(cloudTx);
+            localStorage.setItem('aimm_transactions', JSON.stringify(cloudTx));
+          }
+
+          const cloudCat = await CloudFirestoreService.getCategories(firebaseUser.uid);
+          if (cloudCat.length > 0) {
+            setCategories(cloudCat);
+            localStorage.setItem('aimm_categories', JSON.stringify(cloudCat));
+          }
+        } catch (err) {
+          console.warn('Firestore sync failed or offline, continuing with local:', err);
+        }
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   // Idle lock
   useEffect(() => {
     if (!profile.isPinLocked || !profile.pinHash) return;
@@ -117,12 +175,18 @@ export default function App() {
   const handleAddAccount = useCallback((accData: any) => {
     StorageService.addAccount(accData);
     setAccounts([...StorageService.getAccounts()]);
-  }, []);
+    if (profile.firebaseUid) {
+      CloudFirestoreService.saveAccount(profile.firebaseUid, accData);
+    }
+  }, [profile.firebaseUid]);
 
   const handleUpdateAccount = useCallback((acc: Account) => {
     StorageService.updateAccount(acc);
     setAccounts([...StorageService.getAccounts()]);
-  }, []);
+    if (profile.firebaseUid) {
+      CloudFirestoreService.saveAccount(profile.firebaseUid, acc);
+    }
+  }, [profile.firebaseUid]);
 
   const handleAdjustBalance = useCallback((id: string, newBalance: number, notes?: string) => {
     StorageService.adjustBalance(id, newBalance, notes);
@@ -144,21 +208,47 @@ export default function App() {
     StorageService.addTransaction(txData);
     setTransactions([...StorageService.getTransactions()]);
     setAccounts([...StorageService.getAccounts()]);
-  }, []);
+    if (profile.firebaseUid) {
+      const allTx = StorageService.getTransactions();
+      const latest = allTx[0];
+      if (latest) {
+        CloudFirestoreService.saveTransaction(profile.firebaseUid, latest);
+      }
+    }
+  }, [profile.firebaseUid]);
 
   const handleAddCategory = useCallback((cat: any) => {
     StorageService.addCategory(cat);
     setCategories([...StorageService.getCategories()]);
-  }, []);
+    if (profile.firebaseUid) {
+      CloudFirestoreService.saveCategory(profile.firebaseUid, cat);
+    }
+  }, [profile.firebaseUid]);
 
   const handleDeleteCategory = useCallback((id: string) => {
     StorageService.deleteCategory(id);
     setCategories([...StorageService.getCategories()]);
+    setTransactions([...StorageService.getTransactions()]);
   }, []);
 
   const handleUpdateProfile = useCallback((updated: UserProfile) => {
     setProfile({ ...updated });
+    if (updated.firebaseUid) {
+      CloudFirestoreService.saveUserProfile(updated);
+    }
   }, []);
+
+  const handleToggleDarkMode = () => {
+    const isDark = !profile.darkModeEnabled;
+    const updated = { ...profile, darkModeEnabled: isDark };
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    StorageService.saveUserProfile(updated);
+    setProfile(updated);
+  };
 
   // Welcome modal handlers
   const handleSelectGoogleAuth = () => {
@@ -197,8 +287,26 @@ export default function App() {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
+  const getPageTitle = (tab: NavTab) => {
+    switch (tab) {
+      case 'home':
+        return 'Dashboard Overview';
+      case 'manage':
+        return 'Manage Accounts & Categories';
+      case 'analysis':
+        return 'Financial Intelligence & Analysis';
+      case 'ai_manager':
+        return 'AI Money Manager Assistant';
+      case 'profile':
+      case 'backup':
+        return 'Profile, Currency & Backups';
+      default:
+        return 'AI Money Manager';
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0B1120] text-slate-800 dark:text-slate-100 flex flex-col antialiased">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0B1120] text-slate-800 dark:text-slate-100 flex flex-col md:flex-row antialiased">
       {/* 1. First-Launch Welcome & Auth Popup (Screenshot 3) */}
       <WelcomeModal
         isOpen={isWelcomeModalOpen}
@@ -215,90 +323,147 @@ export default function App() {
         onUnlock={() => setIsAppLocked(false)}
       />
 
-      {/* 3. Global Header & Side Drawer (Screenshots 1, 2, 4, 5, 6, 7, 8) */}
-      <HeaderAndDrawer
-        profile={profile}
-        totalBalance={totalBalance}
-        accountCount={accounts.length}
-        activeTab={activeTab}
-        onTabChange={(tab) => {
-          setActiveTab(tab);
-          if (tab === 'admin') {
-            window.history.pushState({}, '', '/admin');
-          } else if (window.location.pathname === '/admin') {
-            window.history.pushState({}, '', '/');
-          }
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        isDrawerOpen={isDrawerOpen}
-        setIsDrawerOpen={setIsDrawerOpen}
-        onOpenUpgrade={() => setIsPremiumModalOpen(true)}
-      />
+      {/* 3. DESKTOP LEFT SIDEBAR (Requirement 2: md:flex, hidden on mobile) */}
+      <div className="hidden md:flex">
+        <DesktopSidebar
+          profile={profile}
+          totalBalance={totalBalance}
+          accountCount={accounts.length}
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onOpenUpgrade={() => setIsPremiumModalOpen(true)}
+          onToggleDarkMode={handleToggleDarkMode}
+        />
+      </div>
 
-      {/* 4. Active Main Content Screen */}
-      <main className="flex-1 w-full">
-        {activeTab === 'home' && (
-          <HomeScreen
-            profile={profile}
-            accounts={accounts}
-            transactions={transactions}
-            onOpenAddModal={() => setIsAddEntryModalOpen(true)}
-            onOpenCreateAccount={() => {
-              setActiveTab('manage');
-              setManageInitialAddAccount(true);
-            }}
-            onNavigateManage={() => setActiveTab('manage')}
-          />
-        )}
+      {/* 4. MAIN CONTENT AREA (Responsive) */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header (Hidden on Desktop) */}
+        <HeaderAndDrawer
+          profile={profile}
+          totalBalance={totalBalance}
+          accountCount={accounts.length}
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          isDrawerOpen={isDrawerOpen}
+          setIsDrawerOpen={setIsDrawerOpen}
+          onOpenUpgrade={() => setIsPremiumModalOpen(true)}
+        />
 
-        {activeTab === 'manage' && (
-          <ManageScreen
-            profile={profile}
-            accounts={accounts}
-            categories={categories}
-            transactions={transactions}
-            onAddAccount={handleAddAccount}
-            onUpdateAccount={handleUpdateAccount}
-            onAdjustBalance={handleAdjustBalance}
-            onToggleArchive={handleToggleArchive}
-            onDeleteAccount={handleDeleteAccount}
-            onAddCategory={handleAddCategory}
-            onDeleteCategory={handleDeleteCategory}
-            initialOpenAddAccount={manageInitialAddAccount}
-          />
-        )}
+        {/* Desktop Top Header Bar (Requirement 2: Hidden on mobile) */}
+        <header className="hidden md:flex items-center justify-between px-8 py-4 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-30 shadow-2xs">
+          <div>
+            <h2 className="text-base font-extrabold text-[#0B1528] dark:text-white">
+              {getPageTitle(activeTab)}
+            </h2>
+            <p className="text-xs text-slate-400">
+              Personal & Business Financial Workspace · {profile.preferredCurrency} active
+            </p>
+          </div>
 
-        {activeTab === 'analysis' && (
-          <AnalysisScreen
-            profile={profile}
-            accounts={accounts}
-            transactions={transactions}
-            onOpenUpgrade={() => setIsPremiumModalOpen(true)}
-          />
-        )}
+          <div className="flex items-center gap-3">
+            {/* Quick Balance Pill */}
+            <div className="px-3.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Total Balance</span>
+              <span className="text-sm font-extrabold font-mono-numbers text-emerald-600 dark:text-emerald-400">
+                {formatCurrency(totalBalance, prefCurrency)}
+              </span>
+            </div>
 
-        {activeTab === 'ai_manager' && (
-          <AiManagerScreen
-            profile={profile}
-            accounts={accounts}
-            transactions={transactions}
-            onOpenUpgrade={() => setIsPremiumModalOpen(true)}
-            onOpenReceiptScanner={() => setIsReceiptScannerOpen(true)}
-          />
-        )}
+            {/* Dark mode button */}
+            <button
+              onClick={handleToggleDarkMode}
+              className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+            >
+              {profile.darkModeEnabled ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+            </button>
 
-        {activeTab === 'profile' && (
-          <ProfileScreen
-            profile={profile}
-            accounts={accounts}
-            transactions={transactions}
-            totalBalance={totalBalance}
-            onUpdateProfile={handleUpdateProfile}
-            onOpenUpgrade={() => setIsPremiumModalOpen(true)}
-            onOpenGoogleSignIn={handleSelectGoogleAuth}
-          />
-        )}
-      </main>
+            {/* Profile Avatar */}
+            <button
+              onClick={() => setActiveTab('profile')}
+              className="flex items-center gap-2 pl-2 pr-3 py-1 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs flex items-center justify-center">
+                {profile.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-xs font-bold text-slate-800 dark:text-white max-w-[100px] truncate">
+                {profile.name}
+              </span>
+            </button>
+          </div>
+        </header>
+
+        {/* Dynamic Screen View */}
+        <main className="flex-1 w-full pb-20 md:pb-8">
+          {activeTab === 'home' && (
+            <HomeScreen
+              profile={profile}
+              accounts={accounts}
+              transactions={transactions}
+              onOpenAddModal={() => setIsAddEntryModalOpen(true)}
+              onOpenCreateAccount={() => {
+                setActiveTab('manage');
+                setManageInitialAddAccount(true);
+              }}
+              onNavigateManage={() => setActiveTab('manage')}
+            />
+          )}
+
+          {activeTab === 'manage' && (
+            <ManageScreen
+              profile={profile}
+              accounts={accounts}
+              categories={categories}
+              transactions={transactions}
+              onAddAccount={handleAddAccount}
+              onUpdateAccount={handleUpdateAccount}
+              onAdjustBalance={handleAdjustBalance}
+              onToggleArchive={handleToggleArchive}
+              onDeleteAccount={handleDeleteAccount}
+              onAddCategory={handleAddCategory}
+              onDeleteCategory={handleDeleteCategory}
+              initialOpenAddAccount={manageInitialAddAccount}
+            />
+          )}
+
+          {activeTab === 'analysis' && (
+            <AnalysisScreen
+              profile={profile}
+              accounts={accounts}
+              transactions={transactions}
+              onOpenUpgrade={() => setIsPremiumModalOpen(true)}
+            />
+          )}
+
+          {activeTab === 'ai_manager' && (
+            <AiManagerScreen
+              profile={profile}
+              accounts={accounts}
+              transactions={transactions}
+              onOpenUpgrade={() => setIsPremiumModalOpen(true)}
+              onOpenReceiptScanner={() => setIsReceiptScannerOpen(true)}
+            />
+          )}
+
+          {(activeTab === 'profile' || activeTab === 'backup') && (
+            <ProfileScreen
+              profile={profile}
+              accounts={accounts}
+              transactions={transactions}
+              totalBalance={totalBalance}
+              onUpdateProfile={handleUpdateProfile}
+              onOpenUpgrade={() => setIsPremiumModalOpen(true)}
+              onOpenGoogleSignIn={() => setIsWelcomeModalOpen(true)}
+            />
+          )}
+        </main>
+      </div>
 
       {/* 5. Central Add Entry Modal */}
       <AddTransactionModal
@@ -332,16 +497,18 @@ export default function App() {
         onSaveTransaction={handleAddTransaction}
       />
 
-      {/* 8. Fixed Bottom Navigation (5 items) */}
-      <BottomNav
-        activeTab={activeTab}
-        onTabChange={(tab) => {
-          setActiveTab(tab);
-          setManageInitialAddAccount(false);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        onOpenAddModal={() => setIsAddEntryModalOpen(true)}
-      />
+      {/* 8. Fixed Bottom Navigation (Mobile Only: md:hidden) */}
+      <div className="md:hidden">
+        <BottomNav
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            setManageInitialAddAccount(false);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onOpenAddModal={() => setIsAddEntryModalOpen(true)}
+        />
+      </div>
     </div>
   );
 }

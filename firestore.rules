@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'fixfly.in@gmail.com' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // User Profile Document
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+
+      // Accounts Subcollection
+      match /accounts/{accountId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if (isOwner(userId) || isAdmin()) && isValidId(accountId);
+      }
+
+      // Categories Subcollection
+      match /categories/{categoryId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if (isOwner(userId) || isAdmin()) && isValidId(categoryId);
+      }
+
+      // Transactions Subcollection
+      match /transactions/{transactionId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if (isOwner(userId) || isAdmin()) && isValidId(transactionId);
+      }
+
+      // AI Usage Subcollection
+      match /ai_usage/{usageDate} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if (isOwner(userId) || isAdmin()) && isValidId(usageDate);
+      }
+    }
+
+    // Admins Collection
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && request.auth.uid == adminId;
+      allow list, write: if isAdmin();
+    }
+  }
+}

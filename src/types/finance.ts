@@ -37,7 +37,16 @@ export const SUPPORTED_CURRENCIES: CurrencyInfo[] = [
   { code: 'JPY', name: 'Japanese Yen', symbol: '¥', locale: 'ja-JP', fractionDigits: 0, flag: '🇯🇵' },
 ];
 
-export type AccountType = 'bank' | 'cash' | 'credit' | 'upi' | 'wallet';
+export type AccountType =
+  | 'bank'
+  | 'cash'
+  | 'personal'
+  | 'business'
+  | 'savings'
+  | 'credit'
+  | 'upi'
+  | 'wallet'
+  | 'custom';
 
 export interface Account {
   id: string;
@@ -46,7 +55,9 @@ export interface Account {
   balance: number; // Stored in true Account Currency
   currency: CurrencyCode;
   color: string;
+  icon?: string;
   accountNumber?: string;
+  notes?: string;
   openingPosition: number;
   adjustments: number;
   netTransfers: number;
@@ -137,6 +148,8 @@ export interface UserProfile {
   name: string; // Display name shown in Top Header!
   email: string;
   mobileNumber?: string;
+  photoUrl?: string;
+  firebaseUid?: string;
   preferredCurrency: CurrencyCode; // Current profile display currency
   storageMode: 'local' | 'cloud';
   hasSelectedStorageMode?: boolean; // Controls whether the first launch popup appears
@@ -146,7 +159,10 @@ export interface UserProfile {
   autoLockMinutes: number;
   autoBackupSchedule?: 'manual' | 'daily' | 'weekly';
   darkModeEnabled?: boolean;
+  themeMode?: 'light' | 'dark' | 'system';
   dailyAiQuestionsRemaining?: number;
+  dailyAiQuestionsUsed?: number;
+  dailyAiLastDate?: string;
   subscription: UserSubscription;
 }
 

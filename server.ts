@@ -342,6 +342,98 @@ Confidence score between 0.0 and 1.0.`;
   }
 });
 
+// Daily AI Quota tracking: Map<userId_or_ip, { count: number, date: string }>
+const aiDailyUsageMap = new Map<string, { count: number; date: string }>();
+
+// Quota status check
+app.get('/api/ai/quota-status', (req: Request, res: Response) => {
+  const userId = (req.query.userId as string) || req.ip || 'guest';
+  const isPro = req.query.isPro === 'true';
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (isPro) {
+    return res.json({ isPro: true, questionsRemaining: 999999, limit: 999999, date: today });
+  }
+
+  const record = aiDailyUsageMap.get(userId);
+  if (!record || record.date !== today) {
+    return res.json({ isPro: false, questionsRemaining: 1, limit: 1, date: today });
+  }
+
+  const remaining = Math.max(0, 1 - record.count);
+  return res.json({ isPro: false, questionsRemaining: remaining, limit: 1, date: today });
+});
+
+// AI Chat with server-side 1-question-per-day enforcement for Free tier
+app.post('/api/ai/chat', async (req: Request, res: Response) => {
+  try {
+    const { message, userId = req.ip || 'guest', isPro = false, financialContext = {} } = req.body;
+
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Free users get exactly 1 question per day
+    if (!isPro) {
+      const record = aiDailyUsageMap.get(userId);
+      if (record && record.date === today && record.count >= 1) {
+        return res.status(429).json({
+          error: 'Daily AI limit reached',
+          quotaExceeded: true,
+          message:
+            'You have used your free AI question for today. Upgrade to Premium to enjoy unlimited AI chat and advanced financial intelligence.',
+          questionsRemaining: 0,
+        });
+      }
+    }
+
+    const contextPrompt = `You are the AI Financial Intelligence Manager for "AI Money Manager".
+The user has the following authorized financial ledger data:
+- Consolidated Total Balance: ${financialContext.totalBalance || '0'}
+- This Month Income: ${financialContext.thisMonthIncome || '0'}
+- This Month Expense: ${financialContext.thisMonthExpense || '0'}
+- Preferred Currency: ${financialContext.currency || 'INR'}
+- Active Accounts: ${JSON.stringify(financialContext.accounts || [])}
+- Top Categories This Month: ${JSON.stringify(financialContext.topCategories || [])}
+
+User question: "${message}"
+
+Answer the user deterministically and accurately based on their financial data.
+If asked in Hindi or Hinglish, reply naturally in Hindi or Hinglish.
+Keep your response concise, helpful, practical, and clear.`;
+
+    let reply = '';
+    if (process.env.GEMINI_API_KEY) {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: contextPrompt,
+      });
+      reply = response.text || 'I analyzed your accounts. Your financial figures are computed directly from your authorized ledger.';
+    } else {
+      reply = `Based on your accounts: Current Total Balance is ${financialContext.totalBalance || '0'}, this month's recorded expense is ${financialContext.thisMonthExpense || '0'}.`;
+    }
+
+    // Only increment daily quota if response generation succeeded
+    if (!isPro) {
+      const currentRecord = aiDailyUsageMap.get(userId);
+      const currentCount = currentRecord && currentRecord.date === today ? currentRecord.count : 0;
+      aiDailyUsageMap.set(userId, { count: currentCount + 1, date: today });
+    }
+
+    const questionsRemaining = isPro ? 999999 : 0;
+    return res.json({
+      reply,
+      questionsRemaining,
+      isPro,
+    });
+  } catch (error: any) {
+    console.error('AI Chat Error:', error);
+    res.status(500).json({ error: 'AI processing error', details: error?.message });
+  }
+});
+
 // --- 4. Gemini Voice Expense Logger ---
 app.post('/api/ai/voice-expense', async (req: Request, res: Response) => {
   try {
