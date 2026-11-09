@@ -12,16 +12,7 @@ import {
   Transaction,
   UserProfile,
 } from '../types/finance';
-import { convertCurrency, getCachedRates } from './currencyService';
-
-const KEY_USER = 'aimoney_user_profile';
-const KEY_ACCOUNTS = 'aimoney_accounts';
-const KEY_TRANSACTIONS = 'aimoney_transactions';
-const KEY_BUDGETS = 'aimoney_budgets';
-const KEY_GOALS = 'aimoney_goals';
-const KEY_RECURRING = 'aimoney_recurring';
-const KEY_CATEGORIES = 'aimoney_categories';
-const KEY_MODE_SELECTED = 'aimoney_mode_selected';
+import { CalculationService } from './calculationService';
 
 export interface CategoryItem {
   id: string;
@@ -58,9 +49,9 @@ export const DEFAULT_CATEGORIES: CategoryItem[] = [
 ];
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
-  id: 'usr_aimoney_001',
-  name: 'Al Money Manager', // Matches Screenshot 1, 2, 4, 5, 6, 7!
-  email: 'fixfly.in@gmail.com',
+  id: 'usr_aimoney_guest',
+  name: 'Al Money Manager',
+  email: '',
   mobileNumber: '+91 98765 43210',
   preferredCurrency: 'INR',
   storageMode: 'local',
@@ -71,7 +62,8 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   autoLockMinutes: 5,
   autoBackupSchedule: 'daily',
   darkModeEnabled: false,
-  dailyAiQuestionsRemaining: 2,
+  themeMode: 'light',
+  dailyAiQuestionsRemaining: 1,
   subscription: {
     isPro: false,
     billingRegion: 'IN',
@@ -83,16 +75,35 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
 };
 
 export class StorageService {
+  private static activeUserId: string = 'guest';
+
+  /**
+   * Sets the active user boundary.
+   * If a Firebase UID is supplied, all operations are isolated to that UID.
+   */
+  static setActiveUser(userId: string | null | undefined): void {
+    this.activeUserId = userId && userId.trim() ? userId.trim() : 'guest';
+  }
+
+  static getActiveUser(): string {
+    return this.activeUserId;
+  }
+
+  private static getKey(baseKey: string): string {
+    return this.activeUserId === 'guest' ? baseKey : `${baseKey}_${this.activeUserId}`;
+  }
+
   // --- Profile ---
   static getUserProfile(): UserProfile {
     try {
-      const raw = localStorage.getItem(KEY_USER);
+      const key = this.getKey('aimoney_user_profile');
+      const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
           ...DEFAULT_USER_PROFILE,
           ...parsed,
-          hasSelectedStorageMode: localStorage.getItem(KEY_MODE_SELECTED) === 'true',
+          hasSelectedStorageMode: localStorage.getItem(this.getKey('aimoney_mode_selected')) === 'true',
         };
       }
     } catch {
@@ -100,15 +111,24 @@ export class StorageService {
     }
     return {
       ...DEFAULT_USER_PROFILE,
-      hasSelectedStorageMode: localStorage.getItem(KEY_MODE_SELECTED) === 'true',
+      hasSelectedStorageMode: localStorage.getItem(this.getKey('aimoney_mode_selected')) === 'true',
     };
   }
 
+  static getProfile(): UserProfile {
+    return this.getUserProfile();
+  }
+
   static saveUserProfile(profile: UserProfile): void {
-    localStorage.setItem(KEY_USER, JSON.stringify(profile));
+    const key = this.getKey('aimoney_user_profile');
+    localStorage.setItem(key, JSON.stringify(profile));
     if (profile.hasSelectedStorageMode) {
-      localStorage.setItem(KEY_MODE_SELECTED, 'true');
+      localStorage.setItem(this.getKey('aimoney_mode_selected'), 'true');
     }
+  }
+
+  static saveProfile(profile: UserProfile): void {
+    this.saveUserProfile(profile);
   }
 
   static markStorageModeSelected(mode: 'local' | 'cloud', name?: string, email?: string): UserProfile {
@@ -117,7 +137,7 @@ export class StorageService {
     profile.hasSelectedStorageMode = true;
     if (name) profile.name = name;
     if (email) profile.email = email;
-    localStorage.setItem(KEY_MODE_SELECTED, 'true');
+    localStorage.setItem(this.getKey('aimoney_mode_selected'), 'true');
     this.saveUserProfile(profile);
     return profile;
   }
@@ -132,7 +152,8 @@ export class StorageService {
   // --- Accounts ---
   static getAccounts(): Account[] {
     try {
-      const raw = localStorage.getItem(KEY_ACCOUNTS);
+      const key = this.getKey('aimoney_accounts');
+      const raw = localStorage.getItem(key);
       if (raw) return JSON.parse(raw);
     } catch {
       // fallback
@@ -141,54 +162,61 @@ export class StorageService {
   }
 
   static saveAccounts(accounts: Account[]): void {
-    localStorage.setItem(KEY_ACCOUNTS, JSON.stringify(accounts));
+    const key = this.getKey('aimoney_accounts');
+    localStorage.setItem(key, JSON.stringify(accounts));
   }
 
-  static addAccount(accountData: Omit<Account, 'id' | 'updatedAt' | 'createdAt' | 'openingPosition' | 'adjustments' | 'netTransfers'> & { openingPosition?: number }): Account {
+  static addAccount(
+    accountData: Omit<Account, 'id' | 'updatedAt' | 'createdAt' | 'openingPosition' | 'adjustments' | 'netTransfers'> & {
+      openingPosition?: number;
+    }
+  ): Account {
     const accounts = this.getAccounts();
+    const opening = accountData.openingPosition !== undefined ? Number(accountData.openingPosition) : Number(accountData.balance || 0);
+
     const newAccount: Account = {
       ...accountData,
-      id: `acc_${Date.now()}`,
-      openingPosition: accountData.openingPosition ?? accountData.balance,
+      id: `acc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      openingPosition: opening,
+      balance: opening,
       adjustments: 0,
       netTransfers: 0,
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString(),
     };
+
     accounts.push(newAccount);
-    this.saveAccounts(accounts);
-    return newAccount;
+
+    // Deterministically recalculate balances with transactions
+    const transactions = this.getTransactions();
+    const recalculated = CalculationService.recalculateAllAccountBalances(accounts, transactions);
+    this.saveAccounts(recalculated);
+
+    return recalculated.find((a) => a.id === newAccount.id) || newAccount;
   }
 
   static updateAccount(updated: Account): void {
     const accounts = this.getAccounts().map((a) => (a.id === updated.id ? updated : a));
-    this.saveAccounts(accounts);
+    const transactions = this.getTransactions();
+    const recalculated = CalculationService.recalculateAllAccountBalances(accounts, transactions);
+    this.saveAccounts(recalculated);
   }
 
   static adjustBalance(id: string, newBalance: number, notes?: string): void {
     const accounts = this.getAccounts();
     const target = accounts.find((a) => a.id === id);
-    if (target) {
-      const diff = newBalance - target.balance;
-      target.adjustments += diff;
-      target.balance = newBalance;
-      target.updatedAt = new Date().toISOString();
-      this.saveAccounts(accounts);
+    if (!target) return;
 
-      // Log adjustment record
-      this.addTransaction({
-        type: diff >= 0 ? 'income' : 'expense',
-        amount: Math.abs(diff),
-        currency: target.currency,
-        category: 'Adjustment',
-        description: `Balance Adjustment: ${target.name}`,
-        accountId: target.id,
-        paymentMode: 'Other',
-        date: new Date().toISOString().split('T')[0],
-        notes: notes || 'Manual balance adjustment',
-        tags: ['Adjustment'],
-      });
-    }
+    // Adjustment delta
+    const currentCalculated = CalculationService.calculateAccountBalance(target, this.getTransactions());
+    const adjustmentDelta = newBalance - currentCalculated;
+    target.adjustments = (target.adjustments || 0) + adjustmentDelta;
+    target.notes = notes || target.notes;
+    target.updatedAt = new Date().toISOString();
+
+    const transactions = this.getTransactions();
+    const recalculated = CalculationService.recalculateAllAccountBalances(accounts, transactions);
+    this.saveAccounts(recalculated);
   }
 
   static toggleArchiveAccount(id: string): void {
@@ -209,8 +237,12 @@ export class StorageService {
   // --- Transactions ---
   static getTransactions(): Transaction[] {
     try {
-      const raw = localStorage.getItem(KEY_TRANSACTIONS);
-      if (raw) return JSON.parse(raw);
+      const key = this.getKey('aimoney_transactions');
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed: Transaction[] = JSON.parse(raw);
+        return CalculationService.sortTransactionsNewestFirst(parsed);
+      }
     } catch {
       // fallback
     }
@@ -218,121 +250,72 @@ export class StorageService {
   }
 
   static saveTransactions(transactions: Transaction[]): void {
-    localStorage.setItem(KEY_TRANSACTIONS, JSON.stringify(transactions));
+    const sorted = CalculationService.sortTransactionsNewestFirst(transactions);
+    const key = this.getKey('aimoney_transactions');
+    localStorage.setItem(key, JSON.stringify(sorted));
   }
 
   static addTransaction(tx: Omit<Transaction, 'id' | 'createdAt'>): Transaction {
     const transactions = this.getTransactions();
-    const rates = getCachedRates().rates;
 
     const newTx: Transaction = {
       ...tx,
       id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      exchangeRateAtTransaction: tx.exchangeRateAtTransaction || rates[tx.currency] || 1,
       rateDate: tx.rateDate || new Date().toISOString().split('T')[0],
       rateSource: tx.rateSource || 'FixFly Reserve Engine',
       createdAt: new Date().toISOString(),
     };
 
-    // Update account balances appropriately
-    const accounts = this.getAccounts();
-    const account = accounts.find((a) => a.id === tx.accountId);
-
-    if (account) {
-      const amountInAccountCurrency = convertCurrency(
-        tx.amount,
-        tx.currency,
-        account.currency,
-        rates
-      );
-
-      if (tx.type === 'income') {
-        account.balance += amountInAccountCurrency;
-      } else if (tx.type === 'expense') {
-        account.balance -= amountInAccountCurrency;
-      } else if (tx.type === 'transfer' && tx.toAccountId) {
-        account.balance -= amountInAccountCurrency;
-        account.netTransfers -= amountInAccountCurrency;
-        const targetAcc = accounts.find((a) => a.id === tx.toAccountId);
-        if (targetAcc) {
-          const amountInTargetCurrency = convertCurrency(
-            tx.amount,
-            tx.currency,
-            targetAcc.currency,
-            rates
-          );
-          targetAcc.balance += amountInTargetCurrency;
-          targetAcc.netTransfers += amountInTargetCurrency;
-          targetAcc.updatedAt = new Date().toISOString();
-        }
-      }
-      account.updatedAt = new Date().toISOString();
-      this.saveAccounts(accounts);
-    }
-
     transactions.unshift(newTx);
-    this.saveTransactions(transactions);
+    const sorted = CalculationService.sortTransactionsNewestFirst(transactions);
+    this.saveTransactions(sorted);
+
+    // Atomic recalculation of all account balances
+    const accounts = this.getAccounts();
+    const recalculatedAccounts = CalculationService.recalculateAllAccountBalances(accounts, sorted);
+    this.saveAccounts(recalculatedAccounts);
+
     return newTx;
   }
 
-  static deleteTransaction(id: string): void {
-    const transactions = this.getTransactions();
-    const tx = transactions.find((t) => t.id === id);
-    if (!tx) return;
+  static updateTransaction(updatedTx: Transaction): void {
+    const transactions = this.getTransactions().map((t) => (t.id === updatedTx.id ? updatedTx : t));
+    const sorted = CalculationService.sortTransactionsNewestFirst(transactions);
+    this.saveTransactions(sorted);
 
-    // Reconcile balance
+    // Atomic recalculation of all account balances
     const accounts = this.getAccounts();
-    const account = accounts.find((a) => a.id === tx.accountId);
-    const rates = getCachedRates().rates;
+    const recalculatedAccounts = CalculationService.recalculateAllAccountBalances(accounts, sorted);
+    this.saveAccounts(recalculatedAccounts);
+  }
 
-    if (account) {
-      const amountInAccountCurrency = convertCurrency(
-        tx.amount,
-        tx.currency,
-        account.currency,
-        rates
-      );
-      if (tx.type === 'income') {
-        account.balance -= amountInAccountCurrency;
-      } else if (tx.type === 'expense') {
-        account.balance += amountInAccountCurrency;
-      } else if (tx.type === 'transfer' && tx.toAccountId) {
-        account.balance += amountInAccountCurrency;
-        account.netTransfers += amountInAccountCurrency;
-        const targetAcc = accounts.find((a) => a.id === tx.toAccountId);
-        if (targetAcc) {
-          const amountInTargetCurrency = convertCurrency(
-            tx.amount,
-            tx.currency,
-            targetAcc.currency,
-            rates
-          );
-          targetAcc.balance -= amountInTargetCurrency;
-          targetAcc.netTransfers -= amountInTargetCurrency;
-          targetAcc.updatedAt = new Date().toISOString();
-        }
-      }
-      account.updatedAt = new Date().toISOString();
-      this.saveAccounts(accounts);
-    }
+  static deleteTransaction(id: string): void {
+    const transactions = this.getTransactions().filter((t) => t.id !== id);
+    this.saveTransactions(transactions);
 
-    this.saveTransactions(transactions.filter((t) => t.id !== id));
+    // Atomic recalculation of all account balances
+    const accounts = this.getAccounts();
+    const recalculatedAccounts = CalculationService.recalculateAllAccountBalances(accounts, transactions);
+    this.saveAccounts(recalculatedAccounts);
   }
 
   // --- Categories (20 categories) ---
   static getCategories(): CategoryItem[] {
     try {
-      const raw = localStorage.getItem(KEY_CATEGORIES);
+      const key = this.getKey('aimoney_categories');
+      const raw = localStorage.getItem(key);
       if (raw) return JSON.parse(raw);
     } catch {
       // fallback
     }
-    this.saveCategories(DEFAULT_CATEGORIES);
-    return DEFAULT_CATEGORIES;
+    const defaults = [...DEFAULT_CATEGORIES];
+    this.saveCategories(defaults);
+    return defaults;
   }
 
   static saveCategories(categories: CategoryItem[]): void {
-    localStorage.setItem(KEY_CATEGORIES, JSON.stringify(categories));
+    const key = this.getKey('aimoney_categories');
+    localStorage.setItem(key, JSON.stringify(categories));
   }
 
   static addCategory(cat: Omit<CategoryItem, 'id'>): CategoryItem {
@@ -352,7 +335,6 @@ export class StorageService {
     const updatedList = list.map((c) => (c.id === updatedCat.id ? updatedCat : c));
     this.saveCategories(updatedList);
 
-    // If category name changed, update historical transactions to maintain consistency
     if (oldCat && oldCat.name !== updatedCat.name) {
       const transactions = this.getTransactions();
       let hasChanges = false;
@@ -379,7 +361,6 @@ export class StorageService {
     const target = list.find((c) => c.id === id);
     if (!target) return { success: false, reassignedCount: 0 };
 
-    // Check historical transactions referencing this category
     const transactions = this.getTransactions();
     let reassignedCount = 0;
     const updatedTxs = transactions.map((tx) => {
@@ -402,7 +383,8 @@ export class StorageService {
   // --- Budgets ---
   static getBudgets(): Budget[] {
     try {
-      const raw = localStorage.getItem(KEY_BUDGETS);
+      const key = this.getKey('aimoney_budgets');
+      const raw = localStorage.getItem(key);
       if (raw) return JSON.parse(raw);
     } catch {
       // fallback
@@ -411,24 +393,15 @@ export class StorageService {
   }
 
   static saveBudgets(budgets: Budget[]): void {
-    localStorage.setItem(KEY_BUDGETS, JSON.stringify(budgets));
-  }
-
-  static addBudget(budget: Omit<Budget, 'id'>): Budget {
-    const list = this.getBudgets();
-    const newBgt: Budget = {
-      ...budget,
-      id: `bgt_${Date.now()}`,
-    };
-    list.push(newBgt);
-    this.saveBudgets(list);
-    return newBgt;
+    const key = this.getKey('aimoney_budgets');
+    localStorage.setItem(key, JSON.stringify(budgets));
   }
 
   // --- Goals ---
   static getGoals(): SavingsGoal[] {
     try {
-      const raw = localStorage.getItem(KEY_GOALS);
+      const key = this.getKey('aimoney_goals');
+      const raw = localStorage.getItem(key);
       if (raw) return JSON.parse(raw);
     } catch {
       // fallback
@@ -437,50 +410,15 @@ export class StorageService {
   }
 
   static saveGoals(goals: SavingsGoal[]): void {
-    localStorage.setItem(KEY_GOALS, JSON.stringify(goals));
-  }
-
-  static addGoal(goal: Omit<SavingsGoal, 'id'>): SavingsGoal {
-    const goals = this.getGoals();
-    const newGoal: SavingsGoal = {
-      ...goal,
-      id: `goal_${Date.now()}`,
-    };
-    goals.push(newGoal);
-    this.saveGoals(goals);
-    return newGoal;
-  }
-
-  static depositToGoal(goalId: string, amount: number, accountId?: string): void {
-    const goals = this.getGoals();
-    const goal = goals.find((g) => g.id === goalId);
-    if (!goal) return;
-
-    goal.currentAmount += amount;
-    if (goal.currentAmount >= goal.targetAmount) {
-      goal.isCompleted = true;
-    }
-    this.saveGoals(goals);
-
-    if (accountId) {
-      this.addTransaction({
-        type: 'expense',
-        amount,
-        currency: goal.currency,
-        category: 'Savings & Investments',
-        description: `Deposit to Goal: ${goal.name}`,
-        date: new Date().toISOString().split('T')[0],
-        accountId,
-        paymentMode: 'Net Banking',
-        tags: ['Savings', 'Goal Deposit'],
-      });
-    }
+    const key = this.getKey('aimoney_goals');
+    localStorage.setItem(key, JSON.stringify(goals));
   }
 
   // --- Recurring ---
   static getRecurringBills(): RecurringBill[] {
     try {
-      const raw = localStorage.getItem(KEY_RECURRING);
+      const key = this.getKey('aimoney_recurring');
+      const raw = localStorage.getItem(key);
       if (raw) return JSON.parse(raw);
     } catch {
       // fallback
@@ -489,51 +427,54 @@ export class StorageService {
   }
 
   static saveRecurringBills(bills: RecurringBill[]): void {
-    localStorage.setItem(KEY_RECURRING, JSON.stringify(bills));
+    const key = this.getKey('aimoney_recurring');
+    localStorage.setItem(key, JSON.stringify(bills));
   }
 
-  // --- Complete Backup & Restore ---
+  /**
+   * Clears state for active user when switching or starting fresh
+   */
+  static clearActiveUserData(): void {
+    const keyAcc = this.getKey('aimoney_accounts');
+    const keyTx = this.getKey('aimoney_transactions');
+    localStorage.removeItem(keyAcc);
+    localStorage.removeItem(keyTx);
+  }
+
   static exportFullBackup(): string {
-    const data = {
-      app: 'AI Money Manager',
-      version: '6.1.0',
-      exportedAt: new Date().toISOString(),
-      userProfile: this.getUserProfile(),
+    const backup = {
       accounts: this.getAccounts(),
       transactions: this.getTransactions(),
       categories: this.getCategories(),
+      profile: this.getProfile(),
       budgets: this.getBudgets(),
       goals: this.getGoals(),
       recurring: this.getRecurringBills(),
+      exportedAt: new Date().toISOString(),
+      version: '6.1.1',
     };
-    return JSON.stringify(data, null, 2);
+    return JSON.stringify(backup, null, 2);
   }
 
   static importFullBackup(jsonString: string): boolean {
     try {
-      const parsed = JSON.parse(jsonString);
-      if (parsed.userProfile) this.saveUserProfile(parsed.userProfile);
-      if (parsed.accounts) this.saveAccounts(parsed.accounts);
-      if (parsed.transactions) this.saveTransactions(parsed.transactions);
-      if (parsed.categories) this.saveCategories(parsed.categories);
-      if (parsed.budgets) this.saveBudgets(parsed.budgets);
-      if (parsed.goals) this.saveGoals(parsed.goals);
-      if (parsed.recurring) this.saveRecurringBills(parsed.recurring);
+      const data = JSON.parse(jsonString);
+      if (Array.isArray(data.accounts)) this.saveAccounts(data.accounts);
+      if (Array.isArray(data.transactions)) this.saveTransactions(data.transactions);
+      if (Array.isArray(data.categories)) this.saveCategories(data.categories);
+      if (data.profile) this.saveProfile(data.profile);
+      if (Array.isArray(data.budgets)) this.saveBudgets(data.budgets);
+      if (Array.isArray(data.goals)) this.saveGoals(data.goals);
+      if (Array.isArray(data.recurring)) this.saveRecurringBills(data.recurring);
       return true;
-    } catch (err) {
-      console.error('Failed to restore backup:', err);
+    } catch {
       return false;
     }
   }
 
   static resetToDemoData(): void {
-    localStorage.removeItem(KEY_USER);
-    localStorage.removeItem(KEY_ACCOUNTS);
-    localStorage.removeItem(KEY_TRANSACTIONS);
-    localStorage.removeItem(KEY_BUDGETS);
-    localStorage.removeItem(KEY_GOALS);
-    localStorage.removeItem(KEY_RECURRING);
-    localStorage.removeItem(KEY_CATEGORIES);
-    localStorage.removeItem(KEY_MODE_SELECTED);
+    this.clearActiveUserData();
+    localStorage.removeItem(this.getKey('aimoney_categories'));
+    localStorage.removeItem(this.getKey('aimoney_profile'));
   }
 }

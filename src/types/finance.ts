@@ -87,6 +87,8 @@ export interface Transaction {
   exchangeRateAtTransaction?: number; // Rate against USD at recording time
   rateDate?: string;
   rateSource?: string;
+  time?: string; // e.g. 14:30
+  isDeleted?: boolean;
   createdAt: string;
 }
 

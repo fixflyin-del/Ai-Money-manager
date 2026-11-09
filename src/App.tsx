@@ -11,6 +11,7 @@ import {
 } from './types/finance';
 import { StorageService, CategoryItem } from './services/storageService';
 import { convertCurrency, fetchLiveRates, getCachedRates, formatCurrency } from './services/currencyService';
+import { CalculationService } from './services/calculationService';
 import { AuthService } from './services/firebase';
 import { CloudFirestoreService } from './services/cloudFirestoreService';
 
@@ -30,7 +31,7 @@ import { PremiumModal } from './components/PremiumModal';
 import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 import { PinLockModal } from './components/PinLockModal';
 import { AdminPanel } from './components/AdminPanel';
-import { Sun, Moon, User, Bell } from 'lucide-react';
+import { Sun, Moon, User, Plus } from 'lucide-react';
 
 export default function App() {
   // App State
@@ -54,6 +55,15 @@ export default function App() {
   const [isAppLocked, setIsAppLocked] = useState(false);
   const [manageInitialAddAccount, setManageInitialAddAccount] = useState(false);
 
+  // Apply Theme Helper
+  const applyTheme = useCallback((isDark: boolean) => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
   // Initialize and check first launch welcome modal
   useEffect(() => {
     fetchLiveRates();
@@ -63,11 +73,7 @@ export default function App() {
       setIsWelcomeModalOpen(true);
     }
 
-    if (storedProfile.darkModeEnabled) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    applyTheme(Boolean(storedProfile.darkModeEnabled));
 
     // Android Google Play billing purchase result listener
     window.onPlayBillingPurchaseResult = (jsonStr: string) => {
@@ -89,66 +95,107 @@ export default function App() {
           };
           StorageService.saveUserProfile(updated);
           setProfile(updated);
+          if (updated.firebaseUid) {
+            CloudFirestoreService.saveUserProfile(updated);
+          }
         }
       } catch (err) {
         console.error('Failed to parse Play Billing purchase result:', err);
       }
     };
-  }, []);
+  }, [applyTheme]);
 
-  // Real Firebase onAuthStateChanged listener for seamless session sync
+  // Requirement 9: Strict User Data Isolation on Firebase Auth State Change
   useEffect(() => {
     const unsubscribe = AuthService.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
+        const uid = firebaseUser.uid;
+        // 1. Switch local storage boundary to this specific UID
+        StorageService.setActiveUser(uid);
+
         try {
-          // Check if cloud profile exists
-          const cloudProf = await CloudFirestoreService.getUserProfile(firebaseUser.uid);
+          // 2. Fetch cloud profile
+          const cloudProf = await CloudFirestoreService.getUserProfile(uid);
+
           if (cloudProf) {
+            // Returning user: restore their exact cloud data
             setProfile(cloudProf);
             StorageService.saveUserProfile(cloudProf);
+            applyTheme(Boolean(cloudProf.darkModeEnabled));
+
+            const cloudAccounts = await CloudFirestoreService.getAccounts(uid);
+            const cloudTx = await CloudFirestoreService.getTransactions(uid);
+            const cloudCat = await CloudFirestoreService.getCategories(uid);
+
+            const sortedTx = CalculationService.sortTransactionsNewestFirst(cloudTx);
+            const recalculatedAccounts = CalculationService.recalculateAllAccountBalances(cloudAccounts, sortedTx);
+
+            setAccounts(recalculatedAccounts);
+            setTransactions(sortedTx);
+            if (cloudCat.length > 0) setCategories(cloudCat);
+
+            StorageService.saveAccounts(recalculatedAccounts);
+            StorageService.saveTransactions(sortedTx);
+            if (cloudCat.length > 0) StorageService.saveCategories(cloudCat);
           } else {
-            // Seed profile to cloud
+            // Brand new user: initialize clean isolated state (NO data from previous user!)
             const newProf: UserProfile = {
               ...StorageService.getUserProfile(),
-              firebaseUid: firebaseUser.uid,
+              id: uid,
+              firebaseUid: uid,
               name: firebaseUser.displayName || 'FixFly User',
               email: firebaseUser.email || '',
               photoUrl: firebaseUser.photoURL || undefined,
               storageMode: 'cloud',
+              hasSelectedStorageMode: true,
+              darkModeEnabled: false,
+              subscription: {
+                isPro: false,
+                billingRegion: 'IN',
+                billingCurrency: 'INR',
+                amountPaid: 0,
+                gateway: 'PayU',
+                status: 'expired',
+              },
             };
+
             await CloudFirestoreService.saveUserProfile(newProf);
             setProfile(newProf);
             StorageService.saveUserProfile(newProf);
-          }
+            applyTheme(false);
 
-          // Fetch cloud accounts, categories, transactions
-          const cloudAccounts = await CloudFirestoreService.getAccounts(firebaseUser.uid);
-          if (cloudAccounts.length > 0) {
-            setAccounts(cloudAccounts);
-            localStorage.setItem('aimm_accounts', JSON.stringify(cloudAccounts));
-          }
-
-          const cloudTx = await CloudFirestoreService.getTransactions(firebaseUser.uid);
-          if (cloudTx.length > 0) {
-            setTransactions(cloudTx);
-            localStorage.setItem('aimm_transactions', JSON.stringify(cloudTx));
-          }
-
-          const cloudCat = await CloudFirestoreService.getCategories(firebaseUser.uid);
-          if (cloudCat.length > 0) {
-            setCategories(cloudCat);
-            localStorage.setItem('aimm_categories', JSON.stringify(cloudCat));
+            // Fresh accounts & transactions
+            setAccounts([]);
+            setTransactions([]);
+            StorageService.saveAccounts([]);
+            StorageService.saveTransactions([]);
+            const defaults = StorageService.getCategories();
+            setCategories(defaults);
           }
         } catch (err) {
-          console.warn('Firestore sync failed or offline, continuing with local:', err);
+          console.warn('Firestore sync failed or offline:', err);
+          // Load this UID's local storage data
+          setProfile(StorageService.getUserProfile());
+          setAccounts(StorageService.getAccounts());
+          setTransactions(StorageService.getTransactions());
+          setCategories(StorageService.getCategories());
         }
+      } else {
+        // Logged out / Guest: Switch back to guest boundary
+        StorageService.setActiveUser('guest');
+        const guestProf = StorageService.getUserProfile();
+        setProfile(guestProf);
+        setAccounts(StorageService.getAccounts());
+        setTransactions(StorageService.getTransactions());
+        setCategories(StorageService.getCategories());
+        applyTheme(Boolean(guestProf.darkModeEnabled));
       }
     });
 
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, []);
+  }, [applyTheme]);
 
   // Idle lock
   useEffect(() => {
@@ -160,29 +207,28 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [profile.isPinLocked, profile.pinHash]);
 
-  // Consolidated Total Balance across all accounts in preferred display currency
+  // Consolidated Total Balance computed deterministically via CalculationService
   const prefCurrency = profile.preferredCurrency;
   const rates = getCachedRates().rates;
 
   const totalBalance = useMemo(() => {
-    return accounts.reduce((acc, account) => {
-      const converted = convertCurrency(account.balance, account.currency, prefCurrency, rates);
-      return acc + converted;
-    }, 0);
-  }, [accounts, prefCurrency, rates]);
+    return CalculationService.calculateConsolidatedBalance(accounts, transactions, prefCurrency, rates);
+  }, [accounts, transactions, prefCurrency, rates]);
 
-  // Handlers for Storage operations
+  // Handlers for Account operations
   const handleAddAccount = useCallback((accData: any) => {
-    StorageService.addAccount(accData);
-    setAccounts([...StorageService.getAccounts()]);
+    const created = StorageService.addAccount(accData);
+    const updatedAccounts = StorageService.getAccounts();
+    setAccounts(updatedAccounts);
     if (profile.firebaseUid) {
-      CloudFirestoreService.saveAccount(profile.firebaseUid, accData);
+      CloudFirestoreService.saveAccount(profile.firebaseUid, created);
     }
   }, [profile.firebaseUid]);
 
   const handleUpdateAccount = useCallback((acc: Account) => {
     StorageService.updateAccount(acc);
-    setAccounts([...StorageService.getAccounts()]);
+    const updatedAccounts = StorageService.getAccounts();
+    setAccounts(updatedAccounts);
     if (profile.firebaseUid) {
       CloudFirestoreService.saveAccount(profile.firebaseUid, acc);
     }
@@ -190,32 +236,93 @@ export default function App() {
 
   const handleAdjustBalance = useCallback((id: string, newBalance: number, notes?: string) => {
     StorageService.adjustBalance(id, newBalance, notes);
-    setAccounts([...StorageService.getAccounts()]);
-    setTransactions([...StorageService.getTransactions()]);
-  }, []);
+    const updatedAccounts = StorageService.getAccounts();
+    setAccounts(updatedAccounts);
+    const target = updatedAccounts.find((a) => a.id === id);
+    if (target && profile.firebaseUid) {
+      CloudFirestoreService.saveAccount(profile.firebaseUid, target);
+    }
+  }, [profile.firebaseUid]);
 
   const handleToggleArchive = useCallback((id: string) => {
     StorageService.toggleArchiveAccount(id);
-    setAccounts([...StorageService.getAccounts()]);
-  }, []);
+    const updatedAccounts = StorageService.getAccounts();
+    setAccounts(updatedAccounts);
+    const target = updatedAccounts.find((a) => a.id === id);
+    if (target && profile.firebaseUid) {
+      CloudFirestoreService.saveAccount(profile.firebaseUid, target);
+    }
+  }, [profile.firebaseUid]);
 
   const handleDeleteAccount = useCallback((id: string) => {
     StorageService.deleteAccount(id);
-    setAccounts([...StorageService.getAccounts()]);
-  }, []);
-
-  const handleAddTransaction = useCallback((txData: Omit<Transaction, 'id' | 'createdAt'>) => {
-    StorageService.addTransaction(txData);
-    setTransactions([...StorageService.getTransactions()]);
-    setAccounts([...StorageService.getAccounts()]);
+    setAccounts(StorageService.getAccounts());
     if (profile.firebaseUid) {
-      const allTx = StorageService.getTransactions();
-      const latest = allTx[0];
-      if (latest) {
-        CloudFirestoreService.saveTransaction(profile.firebaseUid, latest);
+      CloudFirestoreService.deleteAccount(id);
+    }
+  }, [profile.firebaseUid]);
+
+  // Requirement 3 & 8: Handlers for Transaction CRUD with deterministic atomic recalculation
+  const handleAddTransaction = useCallback((txData: Omit<Transaction, 'id' | 'createdAt'>) => {
+    const createdTx = StorageService.addTransaction(txData);
+    const allTx = StorageService.getTransactions();
+    const updatedAccounts = StorageService.getAccounts();
+
+    setTransactions(allTx);
+    setAccounts(updatedAccounts);
+
+    if (profile.firebaseUid) {
+      CloudFirestoreService.saveTransaction(profile.firebaseUid, createdTx);
+      // Sync affected accounts
+      const src = updatedAccounts.find((a) => a.id === createdTx.accountId);
+      if (src) CloudFirestoreService.saveAccount(profile.firebaseUid, src);
+      if (createdTx.toAccountId) {
+        const dest = updatedAccounts.find((a) => a.id === createdTx.toAccountId);
+        if (dest) CloudFirestoreService.saveAccount(profile.firebaseUid, dest);
       }
     }
   }, [profile.firebaseUid]);
+
+  const handleUpdateTransaction = useCallback((updatedTx: Transaction) => {
+    StorageService.updateTransaction(updatedTx);
+    const allTx = StorageService.getTransactions();
+    const updatedAccounts = StorageService.getAccounts();
+
+    setTransactions(allTx);
+    setAccounts(updatedAccounts);
+
+    if (profile.firebaseUid) {
+      CloudFirestoreService.saveTransaction(profile.firebaseUid, updatedTx);
+      const src = updatedAccounts.find((a) => a.id === updatedTx.accountId);
+      if (src) CloudFirestoreService.saveAccount(profile.firebaseUid, src);
+      if (updatedTx.toAccountId) {
+        const dest = updatedAccounts.find((a) => a.id === updatedTx.toAccountId);
+        if (dest) CloudFirestoreService.saveAccount(profile.firebaseUid, dest);
+      }
+    }
+  }, [profile.firebaseUid]);
+
+  const handleDeleteTransaction = useCallback((id: string) => {
+    const target = transactions.find((t) => t.id === id);
+    StorageService.deleteTransaction(id);
+    const allTx = StorageService.getTransactions();
+    const updatedAccounts = StorageService.getAccounts();
+
+    setTransactions(allTx);
+    setAccounts(updatedAccounts);
+
+    if (profile.firebaseUid) {
+      CloudFirestoreService.deleteTransaction(profile.firebaseUid, id);
+      if (target) {
+        const src = updatedAccounts.find((a) => a.id === target.accountId);
+        if (src) CloudFirestoreService.saveAccount(profile.firebaseUid, src);
+        if (target.toAccountId) {
+          const dest = updatedAccounts.find((a) => a.id === target.toAccountId);
+          if (dest) CloudFirestoreService.saveAccount(profile.firebaseUid, dest);
+        }
+      }
+    }
+  }, [transactions, profile.firebaseUid]);
 
   const handleAddCategory = useCallback((cat: any) => {
     StorageService.addCategory(cat);
@@ -233,21 +340,26 @@ export default function App() {
 
   const handleUpdateProfile = useCallback((updated: UserProfile) => {
     setProfile({ ...updated });
+    StorageService.saveUserProfile(updated);
     if (updated.firebaseUid) {
       CloudFirestoreService.saveUserProfile(updated);
     }
   }, []);
 
+  // Requirement 1: Toggle Theme with persistence in profile and Firestore
   const handleToggleDarkMode = () => {
     const isDark = !profile.darkModeEnabled;
-    const updated = { ...profile, darkModeEnabled: isDark };
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    const updated: UserProfile = {
+      ...profile,
+      darkModeEnabled: isDark,
+      themeMode: isDark ? 'dark' : 'light',
+    };
+    applyTheme(isDark);
     StorageService.saveUserProfile(updated);
     setProfile(updated);
+    if (updated.firebaseUid) {
+      CloudFirestoreService.saveUserProfile(updated);
+    }
   };
 
   // Welcome modal handlers
@@ -306,7 +418,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0B1120] text-slate-800 dark:text-slate-100 flex flex-col md:flex-row antialiased">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0B1120] text-slate-800 dark:text-slate-100 flex flex-col md:flex-row antialiased transition-colors duration-200">
       {/* 1. First-Launch Welcome & Auth Popup (Screenshot 3) */}
       <WelcomeModal
         isOpen={isWelcomeModalOpen}
@@ -356,7 +468,7 @@ export default function App() {
           onOpenUpgrade={() => setIsPremiumModalOpen(true)}
         />
 
-        {/* Desktop Top Header Bar (Requirement 2: Hidden on mobile) */}
+        {/* Desktop Top Header Bar (Hidden on mobile) */}
         <header className="hidden md:flex items-center justify-between px-8 py-4 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 sticky top-0 z-30 shadow-2xs">
           <div>
             <h2 className="text-base font-extrabold text-[#0B1528] dark:text-white">
@@ -380,6 +492,7 @@ export default function App() {
             <button
               onClick={handleToggleDarkMode}
               className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="Toggle Theme"
             >
               {profile.darkModeEnabled ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -406,12 +519,15 @@ export default function App() {
               profile={profile}
               accounts={accounts}
               transactions={transactions}
+              categories={categories}
               onOpenAddModal={() => setIsAddEntryModalOpen(true)}
               onOpenCreateAccount={() => {
                 setActiveTab('manage');
                 setManageInitialAddAccount(true);
               }}
               onNavigateManage={() => setActiveTab('manage')}
+              onUpdateTransaction={handleUpdateTransaction}
+              onDeleteTransaction={handleDeleteTransaction}
             />
           )}
 
@@ -509,6 +625,16 @@ export default function App() {
           onOpenAddModal={() => setIsAddEntryModalOpen(true)}
         />
       </div>
+
+      {/* 9. Requirement 2: DESKTOP FLOATING ADD BUTTON (+) */}
+      <button
+        onClick={() => setIsAddEntryModalOpen(true)}
+        className="hidden md:flex fixed bottom-8 right-8 z-40 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white shadow-2xl items-center justify-center transition-all cursor-pointer group"
+        aria-label="Add Transaction"
+        title="Add Transaction (+)"
+      >
+        <Plus className="w-7 h-7 text-white stroke-[2.5] group-hover:rotate-90 transition-transform duration-200" />
+      </button>
     </div>
   );
 }

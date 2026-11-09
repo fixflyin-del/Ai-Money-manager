@@ -227,9 +227,10 @@ export class CloudFirestoreService {
   /**
    * Deletes a transaction from Firestore
    */
-  static async deleteTransaction(txId: string): Promise<void> {
-    if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
+  static async deleteTransaction(uidOrTxId: string, maybeTxId?: string): Promise<void> {
+    const uid = maybeTxId ? uidOrTxId : auth.currentUser?.uid;
+    const txId = maybeTxId ? maybeTxId : uidOrTxId;
+    if (!uid || !txId) return;
     const path = `users/${uid}/transactions/${txId}`;
     try {
       await deleteDoc(doc(db, 'users', uid, 'transactions', txId));
