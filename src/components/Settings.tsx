@@ -42,6 +42,7 @@ import {
 import { StorageService } from '../services/storageService';
 import { processWebCheckout } from '../services/subscriptionService';
 import { AndroidBridge } from '../services/androidBridge';
+import { EntitlementService } from '../services/entitlementService';
 
 interface SettingsProps {
   profile: UserProfile;
@@ -407,26 +408,26 @@ export const Settings: React.FC<SettingsProps> = ({
                   <h2 className="text-base font-extrabold text-white">Membership Status</h2>
                   <span
                     className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                      profile.subscription.isPro
+                      EntitlementService.isPro(profile)
                         ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                         : 'bg-slate-800 text-slate-400 border-slate-700'
                     }`}
                   >
-                    {profile.subscription.isPro ? 'PRO ACTIVE' : 'FREE TIER'}
+                    {EntitlementService.isPro(profile) ? 'PRO UNLOCKED (FREE LAUNCH)' : 'FREE TIER'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
-                  {profile.subscription.isPro
-                    ? `Plan: ${profile.subscription.planName} • Billed in ${profile.subscription.billingCurrency} via ${profile.subscription.gateway}`
+                  {EntitlementService.isPro(profile)
+                    ? 'All Premium features are complimentary for launch: Unlimited AI, 6 charts, OCR & exports.'
                     : 'Upgrade to unlock unlimited Gemini AI receipt scanning, voice logger, and cloud backup.'}
                 </p>
               </div>
             </div>
 
-            {profile.subscription.isPro && (
+            {EntitlementService.isPro(profile) && (
               <div className="text-right text-xs text-slate-400">
-                <div>Purchase Date: {new Date(profile.subscription.purchaseDate || '').toLocaleDateString()}</div>
-                <div>Status: Active ({profile.subscription.status.toUpperCase()})</div>
+                <div>Status: Launch Access Active</div>
+                <div>Plan: Pro Unlimited</div>
               </div>
             )}
           </div>

@@ -26,6 +26,7 @@ import { convertCurrency, formatCurrency, getCachedRates, getCurrencyInfo } from
 import { ExportService } from '../services/exportService';
 import { StorageService } from '../services/storageService';
 import { AuthService } from '../services/firebase';
+import { EntitlementService } from '../services/entitlementService';
 
 interface ProfileScreenProps {
   profile: UserProfile;
@@ -249,7 +250,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             >
               <Crown className="w-3 h-3 text-amber-500" />
               <span>
-                {profile.subscription.isPro ? 'Pro Active' : 'Free Plan · Upgrade to Premium'}
+                {EntitlementService.isPro(profile) ? 'Pro Features Unlocked (Launch Free)' : 'Free Plan · Upgrade to Premium'}
               </span>
             </button>
           </div>

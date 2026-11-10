@@ -156,12 +156,17 @@ export const ENTITLEMENT_RULES: Record<FeatureKey, EntitlementRule> = {
   },
 };
 
+// Launch configuration: Grant complimentary full access to all users during launch celebration
+export const IS_TEMPORARY_FREE_LAUNCH = true;
+
 export class EntitlementService {
-  static isPro(profile: UserProfile): boolean {
-    return Boolean(profile.subscription && profile.subscription.isPro);
+  static isPro(profile?: UserProfile | null): boolean {
+    if (IS_TEMPORARY_FREE_LAUNCH) return true;
+    return Boolean(profile?.subscription && profile.subscription.isPro);
   }
 
   static canAccess(profile: UserProfile, feature: FeatureKey): boolean {
+    if (IS_TEMPORARY_FREE_LAUNCH) return true;
     const rule = ENTITLEMENT_RULES[feature];
     if (!rule) return true;
     if (this.isPro(profile)) return true;
@@ -169,6 +174,7 @@ export class EntitlementService {
   }
 
   static getRemainingAiQuestions(profile: UserProfile): number {
+    if (IS_TEMPORARY_FREE_LAUNCH) return 999999;
     if (this.isPro(profile)) return 999999;
     const today = new Date().toISOString().slice(0, 10);
     const lastDate = profile.dailyAiLastDate || '';

@@ -16,6 +16,7 @@ import {
 import { Account, Transaction, UserProfile } from '../types/finance';
 import { formatCurrency, getCachedRates } from '../services/currencyService';
 import { CloudFirestoreService } from '../services/cloudFirestoreService';
+import { EntitlementService } from '../services/entitlementService';
 
 interface AiManagerScreenProps {
   profile: UserProfile;
@@ -34,7 +35,7 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
 }) => {
   const prefCurrency = profile.preferredCurrency;
   const rates = getCachedRates().rates;
-  const isPro = profile.subscription.isPro;
+  const isPro = EntitlementService.isPro(profile);
 
   const [activeTab, setActiveTab] = useState<'chat' | 'ocr' | 'budget'>('chat');
   const [chatInput, setChatInput] = useState('');

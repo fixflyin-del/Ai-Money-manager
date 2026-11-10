@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Account, Transaction, UserProfile } from '../types/finance';
 import { convertCurrency, formatCurrency, getCachedRates } from '../services/currencyService';
+import { EntitlementService } from '../services/entitlementService';
 
 interface AnalysisScreenProps {
   profile: UserProfile;
@@ -36,7 +37,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({
 }) => {
   const prefCurrency = profile.preferredCurrency;
   const rates = getCachedRates().rates;
-  const isPro = profile.subscription.isPro;
+  const isPro = EntitlementService.isPro(profile);
 
   const [selectedTimeFilter, setSelectedTimeFilter] = useState<'weekly' | 'monthly' | 'yearly' | 'custom'>('monthly');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');

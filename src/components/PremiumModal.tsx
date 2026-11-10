@@ -9,6 +9,7 @@ import confetti from 'canvas-confetti';
 import { UserProfile } from '../types/finance';
 import { processWebCheckout } from '../services/subscriptionService';
 import { StorageService } from '../services/storageService';
+import { IS_TEMPORARY_FREE_LAUNCH } from '../services/entitlementService';
 
 interface PremiumModalProps {
   isOpen: boolean;
@@ -33,6 +34,11 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   if (!isOpen) return null;
 
   const handleSubscribe = async (planId: 'monthly' | 'annual' | 'lifetime') => {
+    if (IS_TEMPORARY_FREE_LAUNCH) {
+      setStatusMsg('🎉 All Premium features are already 100% unlocked for your account during our launch celebration!');
+      return;
+    }
+
     setIsProcessing(true);
     setStatusMsg(null);
 
@@ -103,6 +109,19 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Launch Celebration Banner */}
+        {IS_TEMPORARY_FREE_LAUNCH && (
+          <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700/60 text-emerald-900 dark:text-emerald-200 space-y-1">
+            <div className="flex items-center gap-2 font-extrabold text-xs text-emerald-700 dark:text-emerald-300">
+              <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>LAUNCH CELEBRATION — ALL FEATURES 100% UNLOCKED</span>
+            </div>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              In celebration of Fixfly Innovations' official production launch, all 15+ Pro capabilities (6 interactive charts, unlimited AI queries, Gemini OCR scanner, and statements) are provided complimentary to every user.
+            </p>
+          </div>
+        )}
 
         {/* Tab Switcher: Plans vs Comparison */}
         <div className="flex bg-[#EEF2F6] dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold">
@@ -175,13 +194,23 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
                   {billingRegion === 'IN' ? '₹49' : '$0.99'}
                   <span className="text-xs text-slate-400 font-normal"> / mo</span>
                 </div>
-                <button
-                  disabled={isProcessing}
-                  onClick={() => handleSubscribe('monthly')}
-                  className="mt-1.5 py-1.5 px-4 rounded-xl bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs shadow-xs hover:bg-[#15233e] transition cursor-pointer"
-                >
-                  Choose Monthly
-                </button>
+                {IS_TEMPORARY_FREE_LAUNCH ? (
+                  <button
+                    disabled
+                    className="mt-1.5 py-1.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-xs flex items-center justify-end gap-1 cursor-default ml-auto"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Active Free</span>
+                  </button>
+                ) : (
+                  <button
+                    disabled={isProcessing}
+                    onClick={() => handleSubscribe('monthly')}
+                    className="mt-1.5 py-1.5 px-4 rounded-xl bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs shadow-xs hover:bg-[#15233e] transition cursor-pointer"
+                  >
+                    Choose Monthly
+                  </button>
+                )}
               </div>
             </div>
 
@@ -202,13 +231,23 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
                   {billingRegion === 'IN' ? '₹499' : '$9.99'}
                   <span className="text-xs text-slate-400 font-normal"> / yr</span>
                 </div>
-                <button
-                  disabled={isProcessing}
-                  onClick={() => handleSubscribe('annual')}
-                  className="mt-1.5 py-1.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
-                >
-                  Choose Annual
-                </button>
+                {IS_TEMPORARY_FREE_LAUNCH ? (
+                  <button
+                    disabled
+                    className="mt-1.5 py-1.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-xs flex items-center justify-end gap-1 cursor-default ml-auto"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Active Free</span>
+                  </button>
+                ) : (
+                  <button
+                    disabled={isProcessing}
+                    onClick={() => handleSubscribe('annual')}
+                    className="mt-1.5 py-1.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                  >
+                    Choose Annual
+                  </button>
+                )}
               </div>
             </div>
 
@@ -225,13 +264,23 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
                 <div className="text-lg font-extrabold font-mono-numbers text-amber-600 dark:text-amber-400">
                   {billingRegion === 'IN' ? '₹1,450' : '$29.99'}
                 </div>
-                <button
-                  disabled={isProcessing}
-                  onClick={() => handleSubscribe('lifetime')}
-                  className="mt-1.5 py-1.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-                >
-                  Get Lifetime
-                </button>
+                {IS_TEMPORARY_FREE_LAUNCH ? (
+                  <button
+                    disabled
+                    className="mt-1.5 py-1.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-xs flex items-center justify-end gap-1 cursor-default ml-auto"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Active Free</span>
+                  </button>
+                ) : (
+                  <button
+                    disabled={isProcessing}
+                    onClick={() => handleSubscribe('lifetime')}
+                    className="mt-1.5 py-1.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                  >
+                    Get Lifetime
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -280,12 +329,21 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
             </div>
 
             <div className="pt-2 text-center">
-              <button
-                onClick={() => setActiveTab('plans')}
-                className="py-2.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
-              >
-                View Plans & Upgrade Now
-              </button>
+              {IS_TEMPORARY_FREE_LAUNCH ? (
+                <button
+                  onClick={onClose}
+                  className="py-2.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                >
+                  Enjoy All Features Free
+                </button>
+              ) : (
+                <button
+                  onClick={() => setActiveTab('plans')}
+                  className="py-2.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                >
+                  View Plans & Upgrade Now
+                </button>
+              )}
             </div>
           </div>
         )}

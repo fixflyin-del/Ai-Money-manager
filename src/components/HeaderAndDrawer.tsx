@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types/finance';
 import { formatCurrency } from '../services/currencyService';
+import { EntitlementService } from '../services/entitlementService';
 
 export type NavTab = 'home' | 'manage' | 'add' | 'analysis' | 'ai_manager' | 'profile' | 'backup' | 'admin';
 
@@ -44,6 +45,7 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
   onOpenUpgrade,
 }) => {
   const prefCurrency = profile.preferredCurrency;
+  const isPro = EntitlementService.isPro(profile);
   const displayName = profile.name.trim() || 'Al Money Manager';
 
   return (
@@ -112,7 +114,7 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                       {displayName}
                     </h3>
                     <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                      {profile.subscription.isPro ? 'Pro Member · Lifetime' : 'Free Plan · Standard'}
+                      {isPro ? 'Pro Member · Lifetime' : 'Free Plan · Standard'}
                     </span>
                   </div>
                 </div>
@@ -185,9 +187,11 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                     <div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                         <span>Analysis</span>
-                        <Lock className="w-3 h-3 text-amber-500" />
+                        {!isPro && <Lock className="w-3 h-3 text-amber-500" />}
                       </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Limited free preview · Full access in ...</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {isPro ? 'Interactive charts & category drilldowns' : 'Limited free preview · Full access in Pro'}
+                      </div>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -208,9 +212,11 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                     <div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                         <span>AI Manager</span>
-                        <Lock className="w-3 h-3 text-amber-500" />
+                        {!isPro && <Lock className="w-3 h-3 text-amber-500" />}
                       </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Limited free usage · Full access in Pr...</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {isPro ? 'Unlimited AI financial queries & OCR scanner' : 'Limited free usage · Full access in Pro'}
+                      </div>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -269,9 +275,11 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                     <Crown className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white leading-snug">Upgrade to Premium</div>
+                    <div className="text-xs font-bold text-white leading-snug">
+                      {isPro ? 'Pro Features Unlocked' : 'Upgrade to Premium'}
+                    </div>
                     <div className="text-[11px] text-slate-300 dark:text-slate-100">
-                      Plans from {prefCurrency === 'INR' ? '₹49/mo' : '$0.99/mo'} · PayU Checkout
+                      {isPro ? 'All Pro tools unlocked for launch celebration' : `Plans from ${prefCurrency === 'INR' ? '₹49/mo' : '$0.99/mo'}`}
                     </div>
                   </div>
                 </div>

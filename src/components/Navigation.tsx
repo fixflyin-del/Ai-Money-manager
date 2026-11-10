@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { CurrencyCode, UserProfile } from '../types/finance';
 import { getCurrencyInfo } from '../services/currencyService';
+import { EntitlementService } from '../services/entitlementService';
 
 export type NavTab = 'dashboard' | 'transactions' | 'analytics' | 'budgets' | 'settings';
 
@@ -66,7 +67,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <h1 className="font-extrabold text-base sm:text-lg tracking-tight text-white flex items-center gap-1.5">
                   AI Money Manager
                 </h1>
-                {profile.subscription.isPro ? (
+                {EntitlementService.isPro(profile) ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-500/20 to-indigo-500/20 text-amber-300 border border-amber-500/30">
                     <Crown className="w-3 h-3 text-amber-400" /> PRO
                   </span>

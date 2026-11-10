@@ -23,6 +23,7 @@ import {
 import { NavTab } from './HeaderAndDrawer';
 import { UserProfile } from '../types/finance';
 import { formatCurrency } from '../services/currencyService';
+import { EntitlementService } from '../services/entitlementService';
 
 interface DesktopSidebarProps {
   profile: UserProfile;
@@ -44,7 +45,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onToggleDarkMode,
 }) => {
   const prefCurrency = profile.preferredCurrency;
-  const isPro = profile.subscription.isPro;
+  const isPro = EntitlementService.isPro(profile);
   const displayName = profile.name.trim() || 'AI Money Manager';
   const initialLetter = displayName.charAt(0).toUpperCase();
 
@@ -149,10 +150,16 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             <Sparkles className="w-3.5 h-3.5 text-amber-200" />
           </button>
         ) : (
-          <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-300">
-            <Crown className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>Premium Lifetime Active</span>
-          </div>
+          <button
+            onClick={onOpenUpgrade}
+            className="w-full p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 flex items-center justify-between text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 transition cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <Crown className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>Launch Pass · Pro Unlocked</span>
+            </div>
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+          </button>
         )}
 
         {/* User Status Bar */}
