@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, ArrowRightLeft, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { X, Trash2, ArrowRightLeft, ArrowDownLeft, ArrowUpRight, Loader2, AlertCircle } from 'lucide-react';
 import { Account, CurrencyCode, PaymentMode, SUPPORTED_CURRENCIES, Transaction, TransactionType, UserProfile } from '../types/finance';
 import { CategoryItem } from '../services/storageService';
 import { DynamicIcon } from './IconAndColorPicker';
@@ -16,8 +16,8 @@ interface EditTransactionModalProps {
   profile: UserProfile;
   accounts: Account[];
   categories: CategoryItem[];
-  onSaveTransaction: (updated: Transaction) => void;
-  onDeleteTransaction: (id: string) => void;
+  onSaveTransaction: (updated: Transaction) => Promise<boolean | void> | void;
+  onDeleteTransaction: (id: string) => Promise<boolean | void> | void;
 }
 
 export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
@@ -42,6 +42,9 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [formTime, setFormTime] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (transaction) {
@@ -57,6 +60,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       setFormTime(transaction.time || new Date().toTimeString().slice(0, 5));
       setFormNotes(transaction.notes || '');
       setShowDeleteConfirm(false);
+      setErrorMessage(null);
     }
   }, [transaction, categories, accounts]);
 
@@ -78,11 +82,13 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
 
   const selectedCatObj = categories.find((c) => c.name === formCategory);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+
     const amt = parseFloat(formAmount);
     if (!amt || isNaN(amt) || amt <= 0) {
-      alert('Please enter a valid amount.');
+      setErrorMessage('Please enter a valid amount.');
       return;
     }
 
@@ -101,13 +107,30 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       notes: formNotes.trim(),
     };
 
-    onSaveTransaction(updated);
-    onClose();
+    setIsSaving(true);
+    try {
+      await onSaveTransaction(updated);
+      onClose();
+    } catch (err: any) {
+      console.error('Failed to update transaction:', err);
+      setErrorMessage(err?.message || 'Failed to update transaction. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleDelete = () => {
-    onDeleteTransaction(transaction.id);
-    onClose();
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    setErrorMessage(null);
+    try {
+      await onDeleteTransaction(transaction.id);
+      onClose();
+    } catch (err: any) {
+      console.error('Failed to delete transaction:', err);
+      setErrorMessage(err?.message || 'Failed to delete transaction. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -139,6 +162,13 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           </button>
         </div>
 
+        {errorMessage && (
+          <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* Delete Confirmation Warning Box */}
         {showDeleteConfirm ? (
           <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 space-y-3">
@@ -154,17 +184,26 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             <div className="flex items-center justify-end gap-2 pt-1">
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800"
+                className="px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={handleDelete}
-                className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
-                Confirm Delete
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <span>Confirm Delete</span>
+                )}
               </button>
             </div>
           </div>
@@ -358,8 +397,9 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
+              disabled={isSaving || isDeleting}
               onClick={() => setShowDeleteConfirm(true)}
-              className="py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition cursor-pointer"
+              className="py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition cursor-pointer disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Delete</span>
@@ -368,16 +408,25 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                disabled={isSaving || isDeleting}
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs shadow-md cursor-pointer hover:bg-[#111e38] transition"
+                disabled={isSaving || isDeleting}
+                className="px-5 py-2.5 rounded-xl bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs shadow-md cursor-pointer hover:bg-[#111e38] transition disabled:opacity-50 flex items-center gap-2"
               >
-                Save Changes
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <span>Save Changes</span>
+                )}
               </button>
             </div>
           </div>

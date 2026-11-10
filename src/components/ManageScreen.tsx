@@ -30,14 +30,14 @@ interface ManageScreenProps {
   accounts: Account[];
   categories: CategoryItem[];
   transactions: Transaction[];
-  onAddAccount: (acc: any) => void;
-  onUpdateAccount: (acc: Account) => void;
-  onAdjustBalance: (id: string, newBalance: number, notes?: string) => void;
-  onToggleArchive: (id: string) => void;
-  onDeleteAccount: (id: string) => void;
-  onAddCategory: (cat: any) => void;
-  onUpdateCategory?: (cat: CategoryItem) => void;
-  onDeleteCategory: (id: string) => void;
+  onAddAccount: (acc: any) => Promise<boolean | void> | void;
+  onUpdateAccount: (acc: Account) => Promise<boolean | void> | void;
+  onAdjustBalance: (id: string, newBalance: number, notes?: string) => Promise<boolean | void> | void;
+  onToggleArchive: (id: string) => Promise<boolean | void> | void;
+  onDeleteAccount: (id: string) => Promise<boolean | void> | void;
+  onAddCategory: (cat: any) => Promise<boolean | void> | void;
+  onUpdateCategory?: (cat: CategoryItem) => Promise<boolean | void> | void;
+  onDeleteCategory: (id: string) => Promise<boolean | void> | void;
   initialOpenAddAccount?: boolean;
 }
 

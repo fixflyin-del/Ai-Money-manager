@@ -89,6 +89,8 @@ export interface Transaction {
   rateSource?: string;
   time?: string; // e.g. 14:30
   isDeleted?: boolean;
+  userId?: string;
+  updatedAt?: string;
   createdAt: string;
 }
 

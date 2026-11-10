@@ -33,8 +33,8 @@ interface HomeScreenProps {
   onOpenAddModal: () => void;
   onOpenCreateAccount: () => void;
   onNavigateManage: () => void;
-  onUpdateTransaction: (tx: Transaction) => void;
-  onDeleteTransaction: (id: string) => void;
+  onUpdateTransaction: (tx: Transaction) => Promise<boolean | void> | void;
+  onDeleteTransaction: (id: string) => Promise<boolean | void> | void;
 }
 
 const MONTH_NAMES = [
@@ -567,9 +567,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       </button>
                       <button
                         onClick={() => {
-                          if (window.confirm(`Delete transaction "${tx.description || tx.category}"? Account balances will be recalculated.`)) {
-                            onDeleteTransaction(tx.id);
-                          }
+                          setEditingTransaction(tx);
                         }}
                         className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 hover:border-rose-300 flex items-center justify-center transition cursor-pointer"
                         title="Delete Transaction"

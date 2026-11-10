@@ -10,14 +10,30 @@ import {
   collection,
   getDocs,
   deleteDoc,
-  query,
-  orderBy,
+  onSnapshot,
+  writeBatch,
+  getDocFromServer,
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 import { Account, Transaction, UserProfile } from '../types/finance';
 import { CategoryItem } from './storageService';
 
 export class CloudFirestoreService {
+  /**
+   * Tests connection to Firestore server on boot
+   */
+  static async testConnection(): Promise<boolean> {
+    try {
+      await getDocFromServer(doc(db, 'test', 'connection'));
+      return true;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('the client is offline')) {
+        console.warn('Firestore connection: Client is offline or network restricted.');
+      }
+      return false;
+    }
+  }
+
   /**
    * Saves user profile to Firestore
    */
@@ -84,68 +100,179 @@ export class CloudFirestoreService {
       }
     } catch (error) {
       console.warn(`Could not load profile for ${uid}:`, error);
+      handleFirestoreError(error, OperationType.GET, `users/${uid}`);
     }
     return null;
   }
 
   /**
-   * Loads user profile using currently authenticated user
+   * Real-time subscription to user profile
    */
-  static async loadProfile(): Promise<Partial<UserProfile> | null> {
-    if (!auth.currentUser) return null;
-    return this.getUserProfile(auth.currentUser.uid);
+  static subscribeToProfile(
+    uid: string,
+    onData: (profile: UserProfile | null) => void,
+    onError?: (err: any) => void
+  ): () => void {
+    const path = `users/${uid}`;
+    return onSnapshot(
+      doc(db, 'users', uid),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          onData({
+            id: uid,
+            name: data.name || 'AI Money Manager',
+            email: data.email || undefined,
+            mobileNumber: data.mobileNumber || '',
+            preferredCurrency: data.preferredCurrency || 'INR',
+            storageMode: 'cloud',
+            firebaseUid: uid,
+            darkModeEnabled: Boolean(data.darkModeEnabled),
+            themeMode: data.themeMode || 'light',
+            hasSelectedStorageMode: true,
+            isPinLocked: Boolean(data.isPinLocked),
+            biometricsEnabled: Boolean(data.biometricsEnabled),
+            autoLockMinutes: data.autoLockMinutes || 5,
+            subscription: {
+              isPro: Boolean(data.isPro),
+              planName: data.planName || 'Free Plan',
+              billingRegion: data.billingRegion || 'IN',
+              billingCurrency: data.billingCurrency || 'INR',
+              amountPaid: data.amountPaid || 0,
+              gateway: data.gateway || 'PayU',
+              status: data.isPro ? 'active' : 'cancelled',
+            },
+          });
+        } else {
+          onData(null);
+        }
+      },
+      (error) => {
+        if (onError) onError(error);
+        handleFirestoreError(error, OperationType.GET, path);
+      }
+    );
   }
 
   /**
    * Fetches all accounts for a user
    */
   static async getAccounts(uid: string): Promise<Account[]> {
+    const path = `users/${uid}/accounts`;
     try {
       const colRef = collection(db, 'users', uid, 'accounts');
       const snap = await getDocs(colRef);
       return snap.docs.map((d) => d.data() as Account);
     } catch (error) {
       console.warn('Failed to get cloud accounts:', error);
+      handleFirestoreError(error, OperationType.LIST, path);
       return [];
     }
+  }
+
+  /**
+   * Real-time listener for user accounts across devices
+   */
+  static subscribeToAccounts(
+    uid: string,
+    onData: (accounts: Account[]) => void,
+    onError?: (err: any) => void
+  ): () => void {
+    const path = `users/${uid}/accounts`;
+    return onSnapshot(
+      collection(db, 'users', uid, 'accounts'),
+      (snap) => {
+        const accounts = snap.docs.map((d) => d.data() as Account);
+        onData(accounts);
+      },
+      (error) => {
+        if (onError) onError(error);
+        handleFirestoreError(error, OperationType.LIST, path);
+      }
+    );
   }
 
   /**
    * Fetches all transactions for a user
    */
   static async getTransactions(uid: string): Promise<Transaction[]> {
+    const path = `users/${uid}/transactions`;
     try {
       const colRef = collection(db, 'users', uid, 'transactions');
       const snap = await getDocs(colRef);
       return snap.docs.map((d) => d.data() as Transaction);
     } catch (error) {
       console.warn('Failed to get cloud transactions:', error);
+      handleFirestoreError(error, OperationType.LIST, path);
       return [];
     }
+  }
+
+  /**
+   * Real-time listener for user transactions across devices
+   */
+  static subscribeToTransactions(
+    uid: string,
+    onData: (transactions: Transaction[]) => void,
+    onError?: (err: any) => void
+  ): () => void {
+    const path = `users/${uid}/transactions`;
+    return onSnapshot(
+      collection(db, 'users', uid, 'transactions'),
+      (snap) => {
+        const transactions = snap.docs.map((d) => d.data() as Transaction);
+        onData(transactions);
+      },
+      (error) => {
+        if (onError) onError(error);
+        handleFirestoreError(error, OperationType.LIST, path);
+      }
+    );
   }
 
   /**
    * Fetches all categories for a user
    */
   static async getCategories(uid: string): Promise<CategoryItem[]> {
+    const path = `users/${uid}/categories`;
     try {
       const colRef = collection(db, 'users', uid, 'categories');
       const snap = await getDocs(colRef);
       return snap.docs.map((d) => d.data() as CategoryItem);
     } catch (error) {
       console.warn('Failed to get cloud categories:', error);
+      handleFirestoreError(error, OperationType.LIST, path);
       return [];
     }
   }
 
   /**
-   * Syncs an account to Firestore
+   * Real-time listener for user categories across devices
    */
-  static async saveAccount(uidOrAccount: string | Account, maybeAccount?: Account): Promise<void> {
-    const uid = typeof uidOrAccount === 'string' ? uidOrAccount : auth.currentUser?.uid;
-    const account = typeof uidOrAccount === 'string' ? maybeAccount : uidOrAccount;
-    if (!uid || !account) return;
+  static subscribeToCategories(
+    uid: string,
+    onData: (categories: CategoryItem[]) => void,
+    onError?: (err: any) => void
+  ): () => void {
+    const path = `users/${uid}/categories`;
+    return onSnapshot(
+      collection(db, 'users', uid, 'categories'),
+      (snap) => {
+        const categories = snap.docs.map((d) => d.data() as CategoryItem);
+        onData(categories);
+      },
+      (error) => {
+        if (onError) onError(error);
+        handleFirestoreError(error, OperationType.LIST, path);
+      }
+    );
+  }
 
+  /**
+   * Syncs an account to Firestore with full error handling
+   */
+  static async saveAccount(uid: string, account: Account): Promise<void> {
+    if (!uid || !account) throw new Error('Missing UID or Account for saveAccount');
     const path = `users/${uid}/accounts/${account.id}`;
     try {
       await setDoc(doc(db, 'users', uid, 'accounts', account.id), {
@@ -161,9 +288,8 @@ export class CloudFirestoreService {
   /**
    * Deletes an account from Firestore
    */
-  static async deleteAccount(accountId: string): Promise<void> {
-    if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
+  static async deleteAccount(uid: string, accountId: string): Promise<void> {
+    if (!uid || !accountId) throw new Error('Missing UID or accountId for deleteAccount');
     const path = `users/${uid}/accounts/${accountId}`;
     try {
       await deleteDoc(doc(db, 'users', uid, 'accounts', accountId));
@@ -175,11 +301,8 @@ export class CloudFirestoreService {
   /**
    * Syncs a category to Firestore
    */
-  static async saveCategory(uidOrCat: string | CategoryItem, maybeCat?: CategoryItem): Promise<void> {
-    const uid = typeof uidOrCat === 'string' ? uidOrCat : auth.currentUser?.uid;
-    const cat = typeof uidOrCat === 'string' ? maybeCat : uidOrCat;
-    if (!uid || !cat) return;
-
+  static async saveCategory(uid: string, cat: CategoryItem): Promise<void> {
+    if (!uid || !cat) throw new Error('Missing UID or Category for saveCategory');
     const path = `users/${uid}/categories/${cat.id}`;
     try {
       await setDoc(doc(db, 'users', uid, 'categories', cat.id), {
@@ -194,9 +317,8 @@ export class CloudFirestoreService {
   /**
    * Deletes a category from Firestore
    */
-  static async deleteCategory(catId: string): Promise<void> {
-    if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
+  static async deleteCategory(uid: string, catId: string): Promise<void> {
+    if (!uid || !catId) throw new Error('Missing UID or catId for deleteCategory');
     const path = `users/${uid}/categories/${catId}`;
     try {
       await deleteDoc(doc(db, 'users', uid, 'categories', catId));
@@ -206,37 +328,138 @@ export class CloudFirestoreService {
   }
 
   /**
-   * Syncs a transaction to Firestore
+   * Saves a transaction and updates affected account balances atomically in a single batch
    */
-  static async saveTransaction(uidOrTx: string | Transaction, maybeTx?: Transaction): Promise<void> {
-    const uid = typeof uidOrTx === 'string' ? uidOrTx : auth.currentUser?.uid;
-    const tx = typeof uidOrTx === 'string' ? maybeTx : uidOrTx;
-    if (!uid || !tx) return;
+  static async saveTransactionWithAccounts(
+    uid: string,
+    tx: Transaction,
+    affectedAccounts: Account[]
+  ): Promise<void> {
+    if (!uid || !tx) throw new Error('Missing UID or Transaction for saveTransactionWithAccounts');
+    const batch = writeBatch(db);
+    const txDocRef = doc(db, 'users', uid, 'transactions', tx.id);
+    batch.set(txDocRef, {
+      ...tx,
+      userId: uid,
+    });
 
-    const path = `users/${uid}/transactions/${tx.id}`;
+    for (const acc of affectedAccounts) {
+      const accDocRef = doc(db, 'users', uid, 'accounts', acc.id);
+      batch.set(
+        accDocRef,
+        {
+          ...acc,
+          userId: uid,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    }
+
     try {
-      await setDoc(doc(db, 'users', uid, 'transactions', tx.id), {
-        ...tx,
-        userId: uid,
-      });
+      await batch.commit();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
+      handleFirestoreError(error, OperationType.WRITE, `users/${uid}/transactions/${tx.id}`);
     }
   }
 
   /**
-   * Deletes a transaction from Firestore
+   * Deletes a transaction and updates affected account balances atomically in a single batch
    */
-  static async deleteTransaction(uidOrTxId: string, maybeTxId?: string): Promise<void> {
-    const uid = maybeTxId ? uidOrTxId : auth.currentUser?.uid;
-    const txId = maybeTxId ? maybeTxId : uidOrTxId;
-    if (!uid || !txId) return;
-    const path = `users/${uid}/transactions/${txId}`;
-    try {
-      await deleteDoc(doc(db, 'users', uid, 'transactions', txId));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
+  static async deleteTransactionWithAccounts(
+    uid: string,
+    txId: string,
+    affectedAccounts: Account[]
+  ): Promise<void> {
+    if (!uid || !txId) throw new Error('Missing UID or txId for deleteTransactionWithAccounts');
+    const batch = writeBatch(db);
+    const txDocRef = doc(db, 'users', uid, 'transactions', txId);
+    batch.delete(txDocRef);
+
+    for (const acc of affectedAccounts) {
+      const accDocRef = doc(db, 'users', uid, 'accounts', acc.id);
+      batch.set(
+        accDocRef,
+        {
+          ...acc,
+          userId: uid,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     }
+
+    try {
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${uid}/transactions/${txId}`);
+    }
+  }
+
+  /**
+   * Idempotent safe migration from local storage to Firestore
+   * Only uploads documents that do not already exist in Firestore, never overwriting existing cloud data.
+   */
+  static async migrateLocalDataToFirestore(
+    uid: string,
+    localAccounts: Account[],
+    localTransactions: Transaction[],
+    localCategories: CategoryItem[],
+    profile: UserProfile
+  ): Promise<{ accountsMigrated: number; transactionsMigrated: number }> {
+    if (!uid) return { accountsMigrated: 0, transactionsMigrated: 0 };
+
+    // 1. Ensure user profile exists
+    await this.saveUserProfile({ ...profile, firebaseUid: uid, storageMode: 'cloud' });
+
+    // 2. Fetch existing cloud data
+    const existingAccounts = await this.getAccounts(uid);
+    const existingTx = await this.getTransactions(uid);
+    const existingCats = await this.getCategories(uid);
+
+    const existingAccIds = new Set(existingAccounts.map((a) => a.id));
+    const existingTxIds = new Set(existingTx.map((t) => t.id));
+    const existingCatIds = new Set(existingCats.map((c) => c.id));
+
+    const batch = writeBatch(db);
+    let accountsMigrated = 0;
+    let transactionsMigrated = 0;
+
+    // Migrate missing accounts
+    for (const acc of localAccounts) {
+      if (!existingAccIds.has(acc.id)) {
+        const accRef = doc(db, 'users', uid, 'accounts', acc.id);
+        batch.set(accRef, { ...acc, userId: uid, updatedAt: new Date().toISOString() });
+        accountsMigrated++;
+      }
+    }
+
+    // Migrate missing transactions
+    for (const tx of localTransactions) {
+      if (!existingTxIds.has(tx.id)) {
+        const txRef = doc(db, 'users', uid, 'transactions', tx.id);
+        batch.set(txRef, { ...tx, userId: uid });
+        transactionsMigrated++;
+      }
+    }
+
+    // Migrate missing categories
+    for (const cat of localCategories) {
+      if (!existingCatIds.has(cat.id)) {
+        const catRef = doc(db, 'users', uid, 'categories', cat.id);
+        batch.set(catRef, { ...cat, userId: uid });
+      }
+    }
+
+    if (accountsMigrated > 0 || transactionsMigrated > 0) {
+      try {
+        await batch.commit();
+      } catch (error) {
+        console.warn('Batch migration partial error:', error);
+      }
+    }
+
+    return { accountsMigrated, transactionsMigrated };
   }
 
   /**

@@ -16,7 +16,7 @@ fi
 
 REMOTE_URL="https://${TOKEN}@github.com/getfixfly/AIMONEYMANAGER.git"
 
-echo "🚀 Pushing release v6.1.1 to https://github.com/getfixfly/AIMONEYMANAGER..."
+echo "🚀 Pushing release v6.1.2 to https://github.com/getfixfly/AIMONEYMANAGER..."
 git push "$REMOTE_URL" main:main --force
 git push "$REMOTE_URL" --tags --force
 echo "✅ Push successful! Vercel will automatically build and deploy production."

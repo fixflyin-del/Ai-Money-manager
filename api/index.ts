@@ -54,7 +54,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
     service: 'AI Money Manager API',
     environment: process.env.NODE_ENV || 'production',
     timestamp: new Date().toISOString(),
-    version: '6.1.1',
+    version: '6.1.2',
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
     payuConfigured: Boolean(process.env.PAYU_MERCHANT_KEY && process.env.PAYU_MERCHANT_SALT),
     playBillingConfigured: Boolean(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT),
