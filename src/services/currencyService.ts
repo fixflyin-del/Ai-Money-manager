@@ -4,6 +4,7 @@
  */
 
 import { CurrencyCode, CurrencyInfo, ExchangeRates, SUPPORTED_CURRENCIES } from '../types/finance';
+import { AndroidBridge } from './androidBridge';
 
 // Default static fallback rates pegged against USD
 export const DEFAULT_EXCHANGE_RATES: ExchangeRates = {
@@ -54,7 +55,7 @@ export function saveCachedRates(rates: ExchangeRates): void {
  */
 export async function fetchLiveRates(): Promise<ExchangeRates> {
   try {
-    const res = await fetch('/api/exchange-rates');
+    const res = await fetch(AndroidBridge.getApiUrl('/api/exchange-rates'));
     if (res.ok) {
       const data: ExchangeRates = await res.json();
       saveCachedRates(data);

@@ -36,6 +36,15 @@ export class AndroidBridge {
     return 'https://aimoney.fixfly.in';
   }
 
+  static getApiUrl(endpoint: string): string {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    if (this.isAndroid()) {
+      const cloud = this.getCloudUrl();
+      if (cloud) return `${cloud.replace(/\/$/, '')}${cleanEndpoint}`;
+    }
+    return cleanEndpoint;
+  }
+
   static openExternalUrl(url: string): void {
     if (this.isAndroid() && window.MoneyFlowNative?.openExternalUrl) {
       window.MoneyFlowNative.openExternalUrl(url);

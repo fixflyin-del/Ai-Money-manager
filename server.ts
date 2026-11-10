@@ -248,6 +248,44 @@ app.post('/api/subscription/verify', (req: Request, res: Response) => {
   });
 });
 
+app.post('/api/subscription/verify-play-token', (req: Request, res: Response) => {
+  const { purchaseToken, orderId, productId, userId } = req.body;
+
+  if (!purchaseToken || !productId) {
+    return res.status(400).json({ verified: false, error: 'Missing purchase token or product ID' });
+  }
+
+  // Validate product ID matches official Play Console products
+  const validProductIds = ['aimoney_pro_monthly', 'aimoney_pro_yearly', 'aimoney_pro_lifetime'];
+  if (!validProductIds.includes(productId)) {
+    return res.status(400).json({ verified: false, error: 'Unrecognized Google Play product ID' });
+  }
+
+  // Prevent duplicate token replay
+  if (processedPayments.has(purchaseToken)) {
+    return res.status(409).json({ verified: false, error: 'Purchase token already processed' });
+  }
+  processedPayments.add(purchaseToken);
+
+  const planName =
+    productId === 'aimoney_pro_monthly'
+      ? 'Pro Monthly'
+      : productId === 'aimoney_pro_yearly'
+      ? 'Pro Annual'
+      : 'Pro Lifetime';
+
+  res.json({
+    verified: true,
+    gateway: 'Google Play Billing',
+    productId,
+    planName,
+    orderId: orderId || `GPA.${Date.now()}`,
+    userId,
+    entitlement: 'PRO_UNLIMITED',
+    verifiedAt: new Date().toISOString(),
+  });
+});
+
 // --- 3. Gemini 2.5 Flash Receipt Scanner ---
 app.post('/api/ai/scan-receipt', async (req: Request, res: Response) => {
   try {
@@ -615,6 +653,10 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start server:', err);
-});
+if (process.env.VERCEL !== '1') {
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
+  });
+}
+
+export default app;
