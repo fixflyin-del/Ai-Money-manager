@@ -27,6 +27,7 @@ import {
   Info,
   GitBranch,
   Loader2,
+  Smartphone,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -918,12 +919,30 @@ export const Settings: React.FC<SettingsProps> = ({
 
             <div className="flex flex-wrap gap-3 pt-1">
               <a
-                href="/aimoneymanager-android-v6.1.4.zip"
+                href="/download/apk"
+                download="AI-Money-Manager-v6.1.4.apk"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>Download Direct APK (v6.1.4)</span>
+              </a>
+
+              <a
+                href="/download/aab"
+                download="AI-Money-Manager-v6.1.4.aab"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Play Store AAB (v6.1.4)</span>
+              </a>
+
+              <a
+                href="/download/source"
                 download="aimoneymanager-android-v6.1.4.zip"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Download Android Release Zip (v6.1.4)</span>
+                <span>Android Source Project (ZIP)</span>
               </a>
 
               <a
@@ -932,7 +951,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs transition cursor-pointer"
               >
                 <HardDrive className="w-4 h-4 text-emerald-400" />
-                <span>Download Git Offline Bundle</span>
+                <span>Git Offline Bundle</span>
               </a>
             </div>
           </div>

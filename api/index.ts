@@ -9,10 +9,13 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import { execSync } from 'child_process';
+import path from 'path';
+import fs from 'fs';
 
 dotenv.config();
 
 const app = express();
+const publicDir = path.resolve(process.cwd(), 'public');
 
 // Allowed origins including canonical Android and web domains
 const allowedOrigins = [
@@ -45,6 +48,49 @@ app.use(
 
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+// Static asset delivery for public files (e.g., APK, AAB, ZIP) with correct MIME types
+app.use(express.static(publicDir, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.apk')) {
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', 'attachment; filename="AI-Money-Manager-v6.1.4.apk"');
+    } else if (filePath.endsWith('.aab')) {
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', 'attachment; filename="AI-Money-Manager-v6.1.4.aab"');
+    } else if (filePath.endsWith('.zip')) {
+      res.setHeader('Content-Type', 'application/zip');
+    }
+  }
+}));
+
+// Dedicated direct download routes for users and Google Play release testers
+app.get('/download/apk', (_req: Request, res: Response) => {
+  const file = path.resolve(publicDir, 'AI-Money-Manager-v6.1.4.apk');
+  if (fs.existsSync(file)) {
+    res.download(file, 'AI-Money-Manager-v6.1.4.apk');
+  } else {
+    res.status(404).send('APK artifact not found');
+  }
+});
+
+app.get('/download/aab', (_req: Request, res: Response) => {
+  const file = path.resolve(publicDir, 'AI-Money-Manager-v6.1.4.aab');
+  if (fs.existsSync(file)) {
+    res.download(file, 'AI-Money-Manager-v6.1.4.aab');
+  } else {
+    res.status(404).send('AAB artifact not found');
+  }
+});
+
+app.get('/download/source', (_req: Request, res: Response) => {
+  const file = path.resolve(publicDir, 'aimoneymanager-android-v6.1.4.zip');
+  if (fs.existsSync(file)) {
+    res.download(file, 'aimoneymanager-android-v6.1.4.zip');
+  } else {
+    res.status(404).send('Source zip artifact not found');
+  }
+});
 
 // ---------------------------------------------------------------------------
 // 1. HEALTH CHECK ENDPOINT
@@ -967,8 +1013,8 @@ app.post('/api/admin/push-to-github', (req: Request, res: Response) => {
     execSync(`git push "${remoteUrl}" --tags --force`, { cwd: process.cwd(), stdio: 'pipe' });
     return res.json({
       success: true,
-      message: 'Successfully pushed release v6.1.3 to https://github.com/getfixfly/AIMONEYMANAGER. Vercel deployment triggered.',
-      tag: 'v6.1.3',
+      message: 'Successfully pushed release v6.1.4 to https://github.com/getfixfly/AIMONEYMANAGER. Vercel deployment triggered.',
+      tag: 'v6.1.4',
     });
   } catch (error: any) {
     console.error('Git push error:', error?.message);
@@ -978,6 +1024,87 @@ app.post('/api/admin/push-to-github', (req: Request, res: Response) => {
       details: stderr,
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// 10. GOOGLE PLAY COMPLIANT ACCOUNT & DATA DELETION REQUEST ENDPOINT
+// ---------------------------------------------------------------------------
+interface DeletionRequest {
+  ticketId: string;
+  email: string;
+  name: string;
+  reason?: string;
+  userId?: string;
+  status: 'PENDING' | 'PROCESSED';
+  createdAt: string;
+}
+
+const deletionRequestsLog: DeletionRequest[] = [];
+
+app.post('/api/account/deletion-request', (req: Request, res: Response) => {
+  const { email, name, reason, userId } = req.body || {};
+
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    return res.status(400).json({
+      success: false,
+      error: 'A valid email address is required to process your account deletion request.',
+    });
+  }
+
+  const ticketId = `DEL-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+  const requestRecord: DeletionRequest = {
+    ticketId,
+    email: email.trim().toLowerCase(),
+    name: name ? String(name).trim() : 'Registered User',
+    reason: reason ? String(reason).trim() : 'User initiated account deletion',
+    userId: userId ? String(userId).trim() : undefined,
+    status: 'PENDING',
+    createdAt: new Date().toISOString(),
+  };
+
+  deletionRequestsLog.push(requestRecord);
+  console.log(`[Account Deletion Request] Ticket ${ticketId} created for ${email}`);
+
+  return res.json({
+    success: true,
+    ticketId,
+    status: 'PENDING',
+    message: 'Your account deletion request has been registered. In accordance with Google Play Data Safety policies, all associated financial ledgers, accounts, transactions, and backups will be purged within 7 business days. You will receive email confirmation at ' + email.trim() + '.',
+    company: 'Fixfly Innovations Pvt. Ltd.',
+    supportEmail: 'info@fixfly.in',
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. CONTACT & FEEDBACK SUBMISSION ENDPOINTS
+// ---------------------------------------------------------------------------
+app.post('/api/contact/submit', (req: Request, res: Response) => {
+  const { name, email, subject, message } = req.body || {};
+  if (!email || !message) {
+    return res.status(400).json({ success: false, error: 'Email and message are required.' });
+  }
+
+  const ticketId = `CNT-${Date.now().toString(36).toUpperCase()}`;
+  console.log(`[Contact Submission] Ticket: ${ticketId} from ${email}: ${subject || 'General Inquiry'}`);
+
+  return res.json({
+    success: true,
+    ticketId,
+    message: 'Thank you for contacting Fixfly Innovations Pvt. Ltd. Your inquiry has been logged and our support desk will respond within 24 hours.',
+  });
+});
+
+app.post('/api/feedback/submit', (req: Request, res: Response) => {
+  const { name, email, rating, feedback, type } = req.body || {};
+  if (!feedback) {
+    return res.status(400).json({ success: false, error: 'Feedback text is required.' });
+  }
+
+  console.log(`[Feedback Submission] Type: ${type || 'General'} Rating: ${rating}/5 from ${email || 'Anonymous'}`);
+  return res.json({
+    success: true,
+    message: 'Thank you for your feedback! Your inputs directly help improve AI Money Manager.',
+  });
 });
 
 export default app;

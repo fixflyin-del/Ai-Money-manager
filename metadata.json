@@ -1,6 +1,6 @@
 {
-  "name": "AI Money Manager — FixFly",
-  "description": "Smart multi-currency personal finance tracker, receipt scanner, budget planner, and wealth manager with Android native app and global subscription engine.",
+  "name": "AI Money Manager — FixFly Personal Finance Intelligence",
+  "description": "Intelligent multi-currency money manager, deep AI cash flow analysis, category budgeting, and wealth tracker by Fixfly Innovations Pvt. Ltd.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

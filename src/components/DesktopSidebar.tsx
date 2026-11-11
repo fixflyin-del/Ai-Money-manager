@@ -19,6 +19,8 @@ import {
   Sun,
   Moon,
   Wallet,
+  Monitor,
+  ExternalLink,
 } from 'lucide-react';
 import { NavTab } from './HeaderAndDrawer';
 import { UserProfile } from '../types/finance';
@@ -127,6 +129,20 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               <span>Support Desk</span>
             </div>
             <span className="text-[10px] text-slate-400">Email</span>
+          </a>
+
+          {/* Desktop Website Portal Link */}
+          <a
+            href="https://aimoneymanager.pro"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full px-3 py-2.5 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 flex items-center justify-between transition group"
+          >
+            <div className="flex items-center gap-3">
+              <Monitor className="w-4 h-4 text-blue-500 group-hover:scale-105 transition-transform" />
+              <span>Website Portal</span>
+            </div>
+            <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
           </a>
         </nav>
       </div>

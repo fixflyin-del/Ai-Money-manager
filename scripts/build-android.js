@@ -33,6 +33,9 @@ function copyFolderRecursiveSync(source, target) {
 
   const files = fs.readdirSync(source);
   for (const file of files) {
+    if (file.endsWith('.zip') || file.endsWith('.bundle') || file.endsWith('.apk') || file.endsWith('.aab')) {
+      continue;
+    }
     const curSource = path.join(source, file);
     const curTarget = path.join(target, file);
     if (fs.lstatSync(curSource).isDirectory()) {

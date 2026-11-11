@@ -17,6 +17,9 @@ import {
   Crown,
   ChevronRight,
   Lock,
+  Monitor,
+  ExternalLink,
+  Globe,
 } from 'lucide-react';
 import { UserProfile } from '../types/finance';
 import { formatCurrency } from '../services/currencyService';
@@ -258,6 +261,30 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </button>
+
+                {/* Go to Desktop Version */}
+                <a
+                  href="https://aimoneymanager.pro"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3.5 flex items-center justify-between text-left hover:bg-blue-50/70 dark:hover:bg-blue-950/30 px-2 rounded-xl transition cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/40 border border-blue-200/60 dark:border-blue-800/60 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform">
+                      <Monitor className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                        <span>Go to Desktop Version</span>
+                        <ExternalLink className="w-3 h-3 text-blue-500" />
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        aimoneymanager.pro · Full Web Portal
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-blue-400" />
+                </a>
               </div>
             </div>
 

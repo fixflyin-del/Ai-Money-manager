@@ -100,6 +100,21 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                if (uri != null && uri.getHost() != null && !uri.getHost().equals("appassets.androidplatform.net")) {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                        view.getContext().startActivity(intent);
+                        return true;
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to launch external browser for " + uri, e);
+                    }
+                }
+                return false;
+            }
+
+            @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 Log.e(TAG, "WebView Resource Error: " + error.getDescription() + " on " + request.getUrl());
             }

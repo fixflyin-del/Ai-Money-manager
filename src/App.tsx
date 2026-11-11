@@ -30,7 +30,31 @@ import { AddTransactionModal } from './components/AddTransactionModal';
 import { PremiumModal } from './components/PremiumModal';
 import { PinLockModal } from './components/PinLockModal';
 import { AdminPanel } from './components/AdminPanel';
-import { Sun, Moon, Loader2 } from 'lucide-react';
+import { WebsitePortal, WebsitePage } from './components/website/WebsitePortal';
+import { Sun, Moon, Loader2, Globe } from 'lucide-react';
+
+const VALID_WEBSITE_PATHS: WebsitePage[] = [
+  'home',
+  'about',
+  'privacy',
+  'terms',
+  'contact',
+  'help',
+  'deletion-policy',
+  'disclaimer',
+  'financial-disclaimer',
+  'support',
+];
+
+function detectWebsitePage(): WebsitePage | null {
+  const p = window.location.pathname.replace(/^\//, '').toLowerCase();
+  if (VALID_WEBSITE_PATHS.includes(p as WebsitePage)) return p as WebsitePage;
+  const q = new URLSearchParams(window.location.search);
+  const pageParam = q.get('page')?.toLowerCase();
+  if (pageParam && VALID_WEBSITE_PATHS.includes(pageParam as WebsitePage)) return pageParam as WebsitePage;
+  if (q.get('portal') === 'website') return 'home';
+  return null;
+}
 
 export default function App() {
   // Authentication & Startup State
@@ -56,6 +80,11 @@ export default function App() {
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
   const [isAppLocked, setIsAppLocked] = useState(false);
   const [manageInitialAddAccount, setManageInitialAddAccount] = useState(false);
+
+  // Website Portal State
+  const initialWebPage = detectWebsitePage();
+  const [websitePage, setWebsitePage] = useState<WebsitePage>(() => initialWebPage || 'home');
+  const [isWebsiteOpen, setIsWebsiteOpen] = useState<boolean>(() => Boolean(initialWebPage));
 
   // Active Real-Time Listeners Unsubscribe Store
   const unsubsRef = useRef<(() => void)[]>([]);
@@ -526,6 +555,23 @@ export default function App() {
     );
   }
 
+  if (isWebsiteOpen) {
+    return (
+      <WebsitePortal
+        initialPage={websitePage}
+        onLaunchApp={() => {
+          setIsWebsiteOpen(false);
+          setActiveTab('home');
+          try {
+            window.history.pushState({}, '', '/');
+          } catch {}
+        }}
+        isDarkMode={Boolean(profile.darkModeEnabled)}
+        onToggleDarkMode={handleToggleDarkMode}
+      />
+    );
+  }
+
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
@@ -627,6 +673,19 @@ export default function App() {
                 {formatCurrency(totalBalance, prefCurrency)}
               </span>
             </div>
+
+            {/* Website Portal button */}
+            <button
+              onClick={() => {
+                setIsWebsiteOpen(true);
+                setWebsitePage('home');
+              }}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="Official Website & Legal Portal"
+            >
+              <Globe className="w-3.5 h-3.5 text-blue-500" />
+              <span>Website</span>
+            </button>
 
             {/* Dark mode button */}
             <button

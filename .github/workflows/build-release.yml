@@ -57,20 +57,20 @@ jobs:
           # Find APK
           APK_PATH=$(find android/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ]; then
-            cp "$APK_PATH" release-output/AI-Money-Manager-v6.1.3.apk
-            echo "APK ready at release-output/AI-Money-Manager-v6.1.3.apk"
+            cp "$APK_PATH" release-output/AI-Money-Manager-v6.1.4.apk
+            echo "APK ready at release-output/AI-Money-Manager-v6.1.4.apk"
           fi
           # Find AAB
           AAB_PATH=$(find android/app/build/outputs/bundle/release/ -name "*.aab" | head -n 1)
           if [ -n "$AAB_PATH" ]; then
-            cp "$AAB_PATH" release-output/AI-Money-Manager-v6.1.3.aab
-            echo "AAB ready at release-output/AI-Money-Manager-v6.1.3.aab"
+            cp "$AAB_PATH" release-output/AI-Money-Manager-v6.1.4.aab
+            echo "AAB ready at release-output/AI-Money-Manager-v6.1.4.aab"
           fi
 
       - name: Upload APK and AAB Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Money-Manager-v6.1.3-Release-Builds
+          name: AI-Money-Manager-v6.1.4-Release-Builds
           path: release-output/
 
       - name: Create GitHub Release with Direct Download Links
@@ -80,14 +80,19 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: AI Money Manager Release ${{ github.ref_name }}
           body: |
-            ## Fixfly AI Money Manager v6.1.3 Release
-            - Permanent Firestore persistence across refresh and restart
-            - Resolved `toAccountId: undefined` WriteBatch error
-            - Real-time cross-device data synchronization
-            - Android package: `com.aimoneymanager.app` (versionCode 13)
-            - 100% Free Launch Mode unlocked
+            ## Fixfly AI Money Manager v6.1.4 Release
+            - Package: `com.aimoneymanager.app`
+            - Version Name: `6.1.4`
+            - Version Code: `14`
+            - Compact horizontal account selection cards with icon and real balance
+            - Deep AI Smart Analysis with account-specific burn rate and runway projections
+            - Fully working Category Budget Planner with spending velocity and overspending alerts
+            - Account-wise financial analysis with strict transfer separation
+            - Permanent Firestore persistence & zero undefined field values
+            - Official Website & Legal Portal at https://aimoneymanager.pro
+            - 100% Free Launch Mode preserved
           files: |
-            release-output/AI-Money-Manager-v6.1.3.apk
-            release-output/AI-Money-Manager-v6.1.3.aab
+            release-output/AI-Money-Manager-v6.1.4.apk
+            release-output/AI-Money-Manager-v6.1.4.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
