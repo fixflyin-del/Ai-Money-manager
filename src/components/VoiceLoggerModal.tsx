@@ -111,7 +111,7 @@ export const VoiceLoggerModal: React.FC<VoiceLoggerModalProps> = ({
       accountId: selectedAccountId,
       paymentMode: parsedExpense.paymentMode,
       date: new Date().toISOString().split('T')[0],
-      notes: parsedExpense.notes,
+      ...(parsedExpense.notes ? { notes: parsedExpense.notes } : {}),
       tags: ['VoiceLogged', parsedExpense.category],
     });
 

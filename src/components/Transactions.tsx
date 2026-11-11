@@ -161,14 +161,13 @@ export const Transactions: React.FC<TransactionsProps> = ({
       .map((t) => t.trim())
       .filter(Boolean);
 
-    onAddTransaction({
+    const payload: Omit<Transaction, 'id' | 'createdAt'> = {
       type: formType,
       amount: amountNum,
       currency: formCurrency,
       description: formDescription.trim() || formCategory,
       category: formType === 'transfer' ? 'Transfer' : formCategory,
       accountId: formAccountId,
-      toAccountId: formType === 'transfer' ? formToAccountId : undefined,
       paymentMode: formPaymentMode,
       date: formDate,
       notes: formNotes.trim(),
@@ -176,7 +175,12 @@ export const Transactions: React.FC<TransactionsProps> = ({
       exchangeRateAtTransaction: rates[formCurrency] || 1,
       rateDate: formDate,
       rateSource: 'FixFly Reserve Engine',
-    });
+    };
+    if (formType === 'transfer' && formToAccountId) {
+      payload.toAccountId = formToAccountId;
+    }
+
+    onAddTransaction(payload);
 
     // Reset and close
     setFormAmount('');

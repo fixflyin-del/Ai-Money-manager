@@ -90,7 +90,7 @@ export const ReceiptScannerModal: React.FC<ReceiptScannerModalProps> = ({
       date: parsedResult.date || new Date().toISOString().split('T')[0],
       notes: `AI Receipt Scan: ${parsedResult.merchant} (Tax: ${parsedResult.taxAmount || 0})`,
       tags: ['ReceiptScan', parsedResult.category],
-      receiptUrl: selectedImage || undefined,
+      ...(selectedImage ? { receiptUrl: selectedImage } : {}),
     });
 
     onClose();

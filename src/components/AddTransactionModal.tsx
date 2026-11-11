@@ -79,16 +79,26 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       return;
     }
 
+    if (formType === 'transfer') {
+      if (!formToAccountId) {
+        setErrorMessage('Please select a destination account for the transfer.');
+        return;
+      }
+      if (formToAccountId === formAccountId) {
+        setErrorMessage('Source and destination accounts must be different.');
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
-      await onAddTransaction({
+      const payload: Omit<Transaction, 'id' | 'createdAt'> = {
         type: formType,
         amount: amt,
         currency: formCurrency,
         description: formDescription.trim() || formCategory,
         category: formType === 'transfer' ? 'Transfer' : formCategory,
         accountId: formAccountId || accounts[0].id,
-        toAccountId: formType === 'transfer' ? formToAccountId : undefined,
         paymentMode: formPaymentMode,
         date: formDate,
         notes: formNotes.trim(),
@@ -96,7 +106,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         exchangeRateAtTransaction: rates[formCurrency] || 1,
         rateDate: formDate,
         rateSource: 'FixFly Reserve Engine',
-      });
+      };
+      if (formType === 'transfer' && formToAccountId) {
+        payload.toAccountId = formToAccountId;
+      }
+
+      await onAddTransaction(payload);
       onClose();
     } catch (err: any) {
       console.error('Failed to save transaction:', err);

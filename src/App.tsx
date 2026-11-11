@@ -333,12 +333,32 @@ export default function App() {
   // Transaction CRUD handlers with atomic multi-document writes and strict error handling
   const handleAddTransaction = useCallback(async (txData: Omit<Transaction, 'id' | 'createdAt'>): Promise<boolean> => {
     const currentUid = auth.currentUser?.uid || profile.firebaseUid;
+
+    if (!txData.amount || isNaN(txData.amount) || txData.amount <= 0) {
+      throw new Error('Transaction amount must be a positive number.');
+    }
+    if (!txData.accountId) {
+      throw new Error('Transaction requires a valid account.');
+    }
+    if (txData.type === 'transfer') {
+      if (!txData.toAccountId) {
+        throw new Error('Transfer requires a destination account.');
+      }
+      if (txData.accountId === txData.toAccountId) {
+        throw new Error('Source and destination accounts must be different.');
+      }
+    }
+
     const newTx: Transaction = {
       ...txData,
       id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       createdAt: new Date().toISOString(),
       userId: currentUid || 'guest',
     };
+
+    if (newTx.type !== 'transfer') {
+      delete newTx.toAccountId;
+    }
 
     const currentTxs = [newTx, ...StorageService.getTransactions()];
     const currentAccounts = StorageService.getAccounts();
@@ -347,7 +367,7 @@ export default function App() {
     // If authenticated, await atomic Firestore commit FIRST
     if (currentUid && currentUid !== 'guest') {
       const affected = recalculatedAccounts.filter(
-        (a) => a.id === newTx.accountId || a.id === newTx.toAccountId
+        (a) => a.id === newTx.accountId || (newTx.type === 'transfer' && a.id === newTx.toAccountId)
       );
       await CloudFirestoreService.saveTransactionWithAccounts(currentUid, newTx, affected);
     }
@@ -362,15 +382,41 @@ export default function App() {
 
   const handleUpdateTransaction = useCallback(async (updatedTx: Transaction): Promise<boolean> => {
     const currentUid = auth.currentUser?.uid || profile.firebaseUid;
-    const currentTxs = StorageService.getTransactions().map((t) => (t.id === updatedTx.id ? updatedTx : t));
+
+    if (!updatedTx.amount || isNaN(updatedTx.amount) || updatedTx.amount <= 0) {
+      throw new Error('Transaction amount must be a positive number.');
+    }
+    if (!updatedTx.accountId) {
+      throw new Error('Transaction requires a valid account.');
+    }
+    if (updatedTx.type === 'transfer') {
+      if (!updatedTx.toAccountId) {
+        throw new Error('Transfer requires a destination account.');
+      }
+      if (updatedTx.accountId === updatedTx.toAccountId) {
+        throw new Error('Source and destination accounts must be different.');
+      }
+    }
+
+    const cleanTx: Transaction = {
+      ...updatedTx,
+      userId: currentUid || updatedTx.userId || 'guest',
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (cleanTx.type !== 'transfer') {
+      delete cleanTx.toAccountId;
+    }
+
+    const currentTxs = StorageService.getTransactions().map((t) => (t.id === cleanTx.id ? cleanTx : t));
     const currentAccounts = StorageService.getAccounts();
     const recalculatedAccounts = CalculationService.recalculateAllAccountBalances(currentAccounts, currentTxs);
 
     if (currentUid && currentUid !== 'guest') {
       const affected = recalculatedAccounts.filter(
-        (a) => a.id === updatedTx.accountId || a.id === updatedTx.toAccountId
+        (a) => a.id === cleanTx.accountId || (cleanTx.type === 'transfer' && a.id === cleanTx.toAccountId)
       );
-      await CloudFirestoreService.saveTransactionWithAccounts(currentUid, updatedTx, affected);
+      await CloudFirestoreService.saveTransactionWithAccounts(currentUid, cleanTx, affected);
     }
 
     StorageService.saveTransactions(currentTxs);
@@ -389,7 +435,7 @@ export default function App() {
 
     if (currentUid && currentUid !== 'guest') {
       const affected = recalculatedAccounts.filter(
-        (a) => target && (a.id === target.accountId || a.id === target.toAccountId)
+        (a) => target && (a.id === target.accountId || (target.type === 'transfer' && a.id === target.toAccountId))
       );
       await CloudFirestoreService.deleteTransactionWithAccounts(currentUid, id, affected);
     }

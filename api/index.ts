@@ -8,6 +8,7 @@ import cors from 'cors';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
+import { execSync } from 'child_process';
 
 dotenv.config();
 
@@ -54,7 +55,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
     service: 'AI Money Manager API',
     environment: process.env.NODE_ENV || 'production',
     timestamp: new Date().toISOString(),
-    version: '6.1.2',
+    version: '6.1.3',
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
     payuConfigured: Boolean(process.env.PAYU_MERCHANT_KEY && process.env.PAYU_MERCHANT_SALT),
     playBillingConfigured: Boolean(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT),
@@ -948,5 +949,35 @@ Generate:
 
 app.post('/api/ai/insights', handleInsights);
 app.post('/api/ai/advice', handleInsights);
+
+// ---------------------------------------------------------------------------
+// 9. DIRECT GITHUB DEPLOYMENT ENDPOINT
+// ---------------------------------------------------------------------------
+app.post('/api/admin/push-to-github', (req: Request, res: Response) => {
+  const { token } = req.body || {};
+  if (!token || typeof token !== 'string' || token.trim().length < 8) {
+    return res.status(400).json({ error: 'Please provide a valid GitHub Personal Access Token (PAT).' });
+  }
+
+  const cleanToken = token.trim();
+  const remoteUrl = `https://${cleanToken}@github.com/getfixfly/AIMONEYMANAGER.git`;
+
+  try {
+    execSync(`git push "${remoteUrl}" main:main --force`, { cwd: process.cwd(), stdio: 'pipe' });
+    execSync(`git push "${remoteUrl}" --tags --force`, { cwd: process.cwd(), stdio: 'pipe' });
+    return res.json({
+      success: true,
+      message: 'Successfully pushed release v6.1.3 to https://github.com/getfixfly/AIMONEYMANAGER. Vercel deployment triggered.',
+      tag: 'v6.1.3',
+    });
+  } catch (error: any) {
+    console.error('Git push error:', error?.message);
+    const stderr = error?.stderr ? error.stderr.toString() : error?.message;
+    return res.status(500).json({
+      error: 'Git push failed. Please verify that your token has repository write permissions (repo scope).',
+      details: stderr,
+    });
+  }
+});
 
 export default app;

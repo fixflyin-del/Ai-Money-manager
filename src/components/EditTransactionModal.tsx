@@ -92,6 +92,17 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       return;
     }
 
+    if (formType === 'transfer') {
+      if (!formToAccountId) {
+        setErrorMessage('Please select a destination account for the transfer.');
+        return;
+      }
+      if (formToAccountId === formAccountId) {
+        setErrorMessage('Source and destination accounts must be different.');
+        return;
+      }
+    }
+
     const updated: Transaction = {
       ...transaction,
       type: formType,
@@ -100,12 +111,17 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       description: formDescription.trim() || formCategory,
       category: formType === 'transfer' ? 'Transfer' : formCategory,
       accountId: formAccountId,
-      toAccountId: formType === 'transfer' ? formToAccountId : undefined,
       paymentMode: formPaymentMode,
       date: formDate,
       time: formTime,
       notes: formNotes.trim(),
     };
+
+    if (formType === 'transfer' && formToAccountId) {
+      updated.toAccountId = formToAccountId;
+    } else {
+      delete updated.toAccountId;
+    }
 
     setIsSaving(true);
     try {

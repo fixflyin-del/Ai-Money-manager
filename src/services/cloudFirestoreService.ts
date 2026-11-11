@@ -17,6 +17,12 @@ import {
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 import { Account, Transaction, UserProfile } from '../types/finance';
 import { CategoryItem } from './storageService';
+import {
+  serializeTransactionForFirestore,
+  serializeAccountForFirestore,
+  serializeCategoryForFirestore,
+  serializeUserProfileForFirestore,
+} from './firestoreSerializer';
 
 export class CloudFirestoreService {
   /**
@@ -42,23 +48,8 @@ export class CloudFirestoreService {
     if (!uid) return;
     const userDocRef = doc(db, 'users', uid);
     try {
-      await setDoc(
-        userDocRef,
-        {
-          id: uid,
-          name: profile.name,
-          email: profile.email || '',
-          mobileNumber: profile.mobileNumber || '',
-          preferredCurrency: profile.preferredCurrency,
-          storageMode: profile.storageMode,
-          darkModeEnabled: Boolean(profile.darkModeEnabled),
-          themeMode: profile.themeMode || 'light',
-          isPro: Boolean(profile.subscription?.isPro),
-          planName: profile.subscription?.planName || '',
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      const sanitized = serializeUserProfileForFirestore(profile, uid);
+      await setDoc(userDocRef, sanitized, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${uid}`);
     }
@@ -275,11 +266,8 @@ export class CloudFirestoreService {
     if (!uid || !account) throw new Error('Missing UID or Account for saveAccount');
     const path = `users/${uid}/accounts/${account.id}`;
     try {
-      await setDoc(doc(db, 'users', uid, 'accounts', account.id), {
-        ...account,
-        userId: uid,
-        updatedAt: new Date().toISOString(),
-      });
+      const sanitized = serializeAccountForFirestore(account, uid);
+      await setDoc(doc(db, 'users', uid, 'accounts', account.id), sanitized, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
@@ -305,10 +293,8 @@ export class CloudFirestoreService {
     if (!uid || !cat) throw new Error('Missing UID or Category for saveCategory');
     const path = `users/${uid}/categories/${cat.id}`;
     try {
-      await setDoc(doc(db, 'users', uid, 'categories', cat.id), {
-        ...cat,
-        userId: uid,
-      });
+      const sanitized = serializeCategoryForFirestore(cat, uid);
+      await setDoc(doc(db, 'users', uid, 'categories', cat.id), sanitized, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
@@ -338,22 +324,13 @@ export class CloudFirestoreService {
     if (!uid || !tx) throw new Error('Missing UID or Transaction for saveTransactionWithAccounts');
     const batch = writeBatch(db);
     const txDocRef = doc(db, 'users', uid, 'transactions', tx.id);
-    batch.set(txDocRef, {
-      ...tx,
-      userId: uid,
-    });
+    const serializedTx = serializeTransactionForFirestore(tx, uid);
+    batch.set(txDocRef, serializedTx);
 
     for (const acc of affectedAccounts) {
       const accDocRef = doc(db, 'users', uid, 'accounts', acc.id);
-      batch.set(
-        accDocRef,
-        {
-          ...acc,
-          userId: uid,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      const serializedAcc = serializeAccountForFirestore(acc, uid);
+      batch.set(accDocRef, serializedAcc, { merge: true });
     }
 
     try {
@@ -378,15 +355,8 @@ export class CloudFirestoreService {
 
     for (const acc of affectedAccounts) {
       const accDocRef = doc(db, 'users', uid, 'accounts', acc.id);
-      batch.set(
-        accDocRef,
-        {
-          ...acc,
-          userId: uid,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      const serializedAcc = serializeAccountForFirestore(acc, uid);
+      batch.set(accDocRef, serializedAcc, { merge: true });
     }
 
     try {
@@ -429,7 +399,8 @@ export class CloudFirestoreService {
     for (const acc of localAccounts) {
       if (!existingAccIds.has(acc.id)) {
         const accRef = doc(db, 'users', uid, 'accounts', acc.id);
-        batch.set(accRef, { ...acc, userId: uid, updatedAt: new Date().toISOString() });
+        const serializedAcc = serializeAccountForFirestore(acc, uid);
+        batch.set(accRef, serializedAcc, { merge: true });
         accountsMigrated++;
       }
     }
@@ -438,7 +409,8 @@ export class CloudFirestoreService {
     for (const tx of localTransactions) {
       if (!existingTxIds.has(tx.id)) {
         const txRef = doc(db, 'users', uid, 'transactions', tx.id);
-        batch.set(txRef, { ...tx, userId: uid });
+        const serializedTx = serializeTransactionForFirestore(tx, uid);
+        batch.set(txRef, serializedTx);
         transactionsMigrated++;
       }
     }
@@ -447,7 +419,8 @@ export class CloudFirestoreService {
     for (const cat of localCategories) {
       if (!existingCatIds.has(cat.id)) {
         const catRef = doc(db, 'users', uid, 'categories', cat.id);
-        batch.set(catRef, { ...cat, userId: uid });
+        const serializedCat = serializeCategoryForFirestore(cat, uid);
+        batch.set(catRef, serializedCat, { merge: true });
       }
     }
 

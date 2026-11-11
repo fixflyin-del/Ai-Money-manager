@@ -266,6 +266,10 @@ export class StorageService {
       createdAt: new Date().toISOString(),
     };
 
+    if (newTx.type !== 'transfer') {
+      delete newTx.toAccountId;
+    }
+
     transactions.unshift(newTx);
     const sorted = CalculationService.sortTransactionsNewestFirst(transactions);
     this.saveTransactions(sorted);
@@ -279,7 +283,11 @@ export class StorageService {
   }
 
   static updateTransaction(updatedTx: Transaction): void {
-    const transactions = this.getTransactions().map((t) => (t.id === updatedTx.id ? updatedTx : t));
+    const cleanTx = { ...updatedTx };
+    if (cleanTx.type !== 'transfer') {
+      delete cleanTx.toAccountId;
+    }
+    const transactions = this.getTransactions().map((t) => (t.id === cleanTx.id ? cleanTx : t));
     const sorted = CalculationService.sortTransactionsNewestFirst(transactions);
     this.saveTransactions(sorted);
 

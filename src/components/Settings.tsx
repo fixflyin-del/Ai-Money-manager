@@ -25,6 +25,8 @@ import {
   CreditCard,
   Building2,
   Info,
+  GitBranch,
+  Loader2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -87,6 +89,39 @@ export const Settings: React.FC<SettingsProps> = ({
     assertion: string;
   }[] | null>(null);
   const [isRunningTests, setIsRunningTests] = useState(false);
+
+  // Direct GitHub Push State
+  const [gitTokenInput, setGitTokenInput] = useState('');
+  const [isPushingGit, setIsPushingGit] = useState(false);
+  const [gitPushSuccess, setGitPushSuccess] = useState<string | null>(null);
+  const [gitPushError, setGitPushError] = useState<string | null>(null);
+
+  const handlePushToGithub = async () => {
+    if (!gitTokenInput.trim()) {
+      setGitPushError('Please enter your GitHub Personal Access Token (PAT).');
+      return;
+    }
+    setIsPushingGit(true);
+    setGitPushSuccess(null);
+    setGitPushError(null);
+    try {
+      const res = await fetch('/api/admin/push-to-github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: gitTokenInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to push commit to GitHub.');
+      }
+      setGitPushSuccess(data.message || 'Successfully pushed release to GitHub! Vercel is now deploying.');
+      setGitTokenInput('');
+    } catch (err: any) {
+      setGitPushError(err.message || 'Push failed. Please check token repository permissions.');
+    } finally {
+      setIsPushingGit(false);
+    }
+  };
 
   // Filtered Currencies
   const filteredCurrencies = useMemo(() => {
@@ -805,6 +840,101 @@ export const Settings: React.FC<SettingsProps> = ({
               <RotateCcw className="w-4 h-4" />
               <span>Reset to Demo Data</span>
             </button>
+          </div>
+
+          {/* Direct GitHub Push & Deploy Card */}
+          <div className="pt-6 border-t border-slate-800 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center text-blue-400">
+                <GitBranch className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Direct GitHub & Vercel Deployment</h3>
+                <p className="text-xs text-slate-400">
+                  If AI Studio UI shows "Permission Denied", enter your GitHub Token below to push code & trigger Vercel deployment directly.
+                </p>
+              </div>
+            </div>
+
+            {gitPushSuccess && (
+              <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{gitPushSuccess}</span>
+              </div>
+            )}
+
+            {gitPushError && (
+              <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-xs text-rose-300 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{gitPushError}</span>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2 max-w-xl">
+              <input
+                type="password"
+                placeholder="ghp_yourPersonalAccessTokenHere..."
+                value={gitTokenInput}
+                onChange={(e) => setGitTokenInput(e.target.value)}
+                className="flex-1 px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500 font-mono"
+              />
+              <button
+                type="button"
+                onClick={handlePushToGithub}
+                disabled={isPushingGit}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-sm"
+              >
+                {isPushingGit ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Pushing to GitHub...</span>
+                  </>
+                ) : (
+                  <>
+                    <GitBranch className="w-4 h-4" />
+                    <span>Push & Deploy (v6.1.3)</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Target repository: <span className="font-mono text-slate-400">https://github.com/getfixfly/AIMONEYMANAGER</span> (branch: main, tag: v6.1.3)
+            </p>
+          </div>
+
+          {/* Android Release Project & Artifacts Download Card */}
+          <div className="pt-6 border-t border-slate-800 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-400">
+                <Download className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Android Release Package & Git Bundle (v6.1.3)</h3>
+                <p className="text-xs text-slate-400">
+                  Ready-to-build Android source package with synced assets and offline git bundle.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3 pt-1">
+              <a
+                href="/aimoneymanager-android-v6.1.3.zip"
+                download="aimoneymanager-android-v6.1.3.zip"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Android Release Zip (v6.1.3 - 4.3 MB)</span>
+              </a>
+
+              <a
+                href="/aimoneymanager-release.bundle"
+                download="aimoneymanager-release.bundle"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs transition cursor-pointer"
+              >
+                <HardDrive className="w-4 h-4 text-emerald-400" />
+                <span>Download Git Offline Bundle (9.5 MB)</span>
+              </a>
+            </div>
           </div>
         </div>
       )}
