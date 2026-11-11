@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Account, Transaction, UserProfile } from '../types/finance';
+import { Account, Budget, Transaction, UserProfile } from '../types/finance';
 import { CategoryItem } from './storageService';
 
 /**
@@ -221,6 +221,38 @@ export function serializeUserProfileForFirestore(
     billingCurrency: profile.subscription?.billingCurrency || 'INR',
     amountPaid: Number(profile.subscription?.amountPaid) || 0,
     gateway: profile.subscription?.gateway || 'PayU',
+    updatedAt: new Date().toISOString(),
+  };
+
+  return stripUndefined(payload);
+}
+
+/**
+ * Validates and serializes a Budget into a Firestore-safe plain JavaScript object.
+ */
+export function serializeBudgetForFirestore(
+  budget: Budget,
+  uid: string
+): Record<string, any> {
+  if (!uid || typeof uid !== 'string') {
+    throw new Error('Firestore Serialization Error: Missing uid for Budget.');
+  }
+  if (!budget || !budget.id) {
+    throw new Error('Firestore Serialization Error: Budget requires valid id.');
+  }
+
+  const limit = Number(budget.monthlyLimit);
+  if (isNaN(limit) || !isFinite(limit) || limit <= 0) {
+    throw new Error(`Invalid budget limit: ${budget.monthlyLimit}`);
+  }
+
+  const payload: Record<string, any> = {
+    id: budget.id,
+    category: String(budget.category).trim() || 'General',
+    monthlyLimit: limit,
+    currency: budget.currency || 'INR',
+    alertThreshold: Number(budget.alertThreshold) || 80,
+    userId: uid,
     updatedAt: new Date().toISOString(),
   };
 

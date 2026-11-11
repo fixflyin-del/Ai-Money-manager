@@ -28,7 +28,6 @@ import { AiManagerScreen } from './components/AiManagerScreen';
 import { ProfileScreen } from './components/ProfileScreen';
 import { AddTransactionModal } from './components/AddTransactionModal';
 import { PremiumModal } from './components/PremiumModal';
-import { ReceiptScannerModal } from './components/ReceiptScannerModal';
 import { PinLockModal } from './components/PinLockModal';
 import { AdminPanel } from './components/AdminPanel';
 import { Sun, Moon, Loader2 } from 'lucide-react';
@@ -55,7 +54,6 @@ export default function App() {
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [isAddEntryModalOpen, setIsAddEntryModalOpen] = useState(false);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
-  const [isReceiptScannerOpen, setIsReceiptScannerOpen] = useState(false);
   const [isAppLocked, setIsAppLocked] = useState(false);
   const [manageInitialAddAccount, setManageInitialAddAccount] = useState(false);
 
@@ -705,7 +703,6 @@ export default function App() {
               accounts={accounts}
               transactions={transactions}
               onOpenUpgrade={() => setIsPremiumModalOpen(true)}
-              onOpenReceiptScanner={() => setIsReceiptScannerOpen(true)}
             />
           )}
 
@@ -744,15 +741,6 @@ export default function App() {
         onClose={() => setIsPremiumModalOpen(false)}
         profile={profile}
         onUpdateProfile={handleUpdateProfile}
-      />
-
-      {/* 7. Gemini AI Receipt Scanner Modal */}
-      <ReceiptScannerModal
-        isOpen={isReceiptScannerOpen}
-        onClose={() => setIsReceiptScannerOpen(false)}
-        profile={profile}
-        accounts={accounts}
-        onSaveTransaction={handleAddTransaction}
       />
 
       {/* 8. Mobile Bottom Navigation */}

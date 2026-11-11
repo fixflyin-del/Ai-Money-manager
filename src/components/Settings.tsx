@@ -909,21 +909,21 @@ export const Settings: React.FC<SettingsProps> = ({
                 <Download className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Android Release Package & Git Bundle (v6.1.3)</h3>
+                <h3 className="text-sm font-bold text-white">Android Production Release Package (v6.1.4)</h3>
                 <p className="text-xs text-slate-400">
-                  Ready-to-build Android source package with synced assets and offline git bundle.
+                  Ready-to-build Android source package with synced assets, Play Billing, and offline bundle.
                 </p>
               </div>
             </div>
 
             <div className="flex flex-wrap gap-3 pt-1">
               <a
-                href="/aimoneymanager-android-v6.1.3.zip"
-                download="aimoneymanager-android-v6.1.3.zip"
+                href="/aimoneymanager-android-v6.1.4.zip"
+                download="aimoneymanager-android-v6.1.4.zip"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Download Android Release Zip (v6.1.3 - 4.3 MB)</span>
+                <span>Download Android Release Zip (v6.1.4)</span>
               </a>
 
               <a
@@ -932,7 +932,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs transition cursor-pointer"
               >
                 <HardDrive className="w-4 h-4 text-emerald-400" />
-                <span>Download Git Offline Bundle (9.5 MB)</span>
+                <span>Download Git Offline Bundle</span>
               </a>
             </div>
           </div>

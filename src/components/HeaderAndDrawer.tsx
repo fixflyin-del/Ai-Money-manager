@@ -215,7 +215,7 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                         {!isPro && <Lock className="w-3 h-3 text-amber-500" />}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {isPro ? 'Unlimited AI financial queries & OCR scanner' : 'Limited free usage · Full access in Pro'}
+                        {isPro ? 'Unlimited AI financial queries & Deep Smart Analysis' : 'Limited free usage · Full access in Pro'}
                       </div>
                     </div>
                   </div>

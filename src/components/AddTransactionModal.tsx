@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, Loader2, AlertCircle } from 'lucide-react';
+import { X, Loader2, AlertCircle, Check } from 'lucide-react';
 import { Account, CurrencyCode, PaymentMode, SUPPORTED_CURRENCIES, Transaction, TransactionType, UserProfile } from '../types/finance';
 import { CategoryItem } from '../services/storageService';
 import { convertCurrency, formatCurrency, getCachedRates } from '../services/currencyService';
@@ -239,7 +239,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </div>
           )}
 
-          {/* Account Selection */}
+          {/* Redesigned Account Selection UI */}
           {accounts.length === 0 ? (
             <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-800 dark:text-amber-300 space-y-1">
               <span className="font-bold block">No accounts created yet!</span>
@@ -251,54 +251,194 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 + Create an account first
               </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
+          ) : formType === 'transfer' ? (
+            <div className="space-y-3.5 pt-1">
+              {/* Transfer: From Source Account */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {formType === 'transfer' ? 'From Account' : 'Account'}
-                </label>
-                <select
-                  value={formAccountId}
-                  onChange={(e) => setFormAccountId(e.target.value)}
-                  className="w-full px-2 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-medium text-slate-800 dark:text-white cursor-pointer"
-                >
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} ({a.currency})
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                    <span>From Account (Source)</span>
+                    <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">Debited</span>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar">
+                  {accounts.map((acc) => {
+                    const isSelected = formAccountId === acc.id;
+                    return (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        onClick={() => {
+                          setFormAccountId(acc.id);
+                          setFormCurrency(acc.currency);
+                          if (formToAccountId === acc.id) {
+                            const next = accounts.find((a) => a.id !== acc.id);
+                            if (next) setFormToAccountId(next.id);
+                          }
+                        }}
+                        className={`flex-shrink-0 w-36 sm:w-40 p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 shadow-xs ring-2 ring-blue-500/30'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div
+                            className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 shadow-2xs"
+                            style={{ backgroundColor: acc.color || '#3B82F6', color: '#FFFFFF' }}
+                          >
+                            <DynamicIcon name={acc.icon || 'Landmark'} className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          <span className="text-xs font-bold truncate max-w-[85px] leading-tight">
+                            {acc.name}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono font-bold text-slate-900 dark:text-white truncate">
+                          {formatCurrency(acc.balance, acc.currency)}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {formType === 'transfer' ? (
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">To Account</label>
-                  <select
-                    value={formToAccountId}
-                    onChange={(e) => setFormToAccountId(e.target.value)}
-                    className="w-full px-2 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-medium text-slate-800 dark:text-white cursor-pointer"
-                  >
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.currency})
-                      </option>
-                    ))}
-                  </select>
+              {/* Transfer: To Destination Account */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                    <span>To Account (Destination)</span>
+                    <span className="text-emerald-500">*</span>
+                  </label>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Credited</span>
                 </div>
-              ) : (
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Payment Mode</label>
-                  <select
-                    value={formPaymentMode}
-                    onChange={(e) => setFormPaymentMode(e.target.value as PaymentMode)}
-                    className="w-full px-2 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-medium text-slate-800 dark:text-white cursor-pointer"
-                  >
-                    {paymentModes.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
+                <div className="flex gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar">
+                  {accounts.map((acc) => {
+                    const isSelected = formToAccountId === acc.id;
+                    const isSameAsSource = formAccountId === acc.id;
+                    return (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        disabled={isSameAsSource}
+                        onClick={() => setFormToAccountId(acc.id)}
+                        className={`flex-shrink-0 w-36 sm:w-40 p-2.5 rounded-xl border text-left transition-all relative ${
+                          isSameAsSource
+                            ? 'opacity-35 cursor-not-allowed border-dashed border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50'
+                            : isSelected
+                            ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 shadow-xs ring-2 ring-emerald-500/30 cursor-pointer'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer'
+                        }`}
+                      >
+                        {isSelected && !isSameAsSource && (
+                          <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div
+                            className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 shadow-2xs"
+                            style={{ backgroundColor: acc.color || '#10B981', color: '#FFFFFF' }}
+                          >
+                            <DynamicIcon name={acc.icon || 'Landmark'} className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          <span className="text-xs font-bold truncate max-w-[85px] leading-tight">
+                            {acc.name}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono font-bold text-slate-900 dark:text-white truncate">
+                          {formatCurrency(acc.balance, acc.currency)}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 pt-1">
+              {/* Income / Expense: Select Account */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                    <span>Account</span>
+                    <span className="text-blue-500">*</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">{accounts.length} available</span>
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar">
+                  {accounts.map((acc) => {
+                    const isSelected = formAccountId === acc.id;
+                    return (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        onClick={() => {
+                          setFormAccountId(acc.id);
+                          setFormCurrency(acc.currency);
+                        }}
+                        className={`flex-shrink-0 w-36 sm:w-40 p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 shadow-xs ring-2 ring-blue-500/30'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div
+                            className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 shadow-2xs"
+                            style={{ backgroundColor: acc.color || '#3B82F6', color: '#FFFFFF' }}
+                          >
+                            <DynamicIcon name={acc.icon || 'Landmark'} className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          <span className="text-xs font-bold truncate max-w-[85px] leading-tight">
+                            {acc.name}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono font-bold text-slate-900 dark:text-white truncate">
+                          {formatCurrency(acc.balance, acc.currency)}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Payment Mode Selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Payment Mode
+                </label>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                  {paymentModes.map((m) => {
+                    const isSelected = formPaymentMode === m;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setFormPaymentMode(m)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                          isSelected
+                            ? 'bg-[#0B1528] dark:bg-blue-600 text-white shadow-xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
 

@@ -15,13 +15,14 @@ import {
   getDocFromServer,
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
-import { Account, Transaction, UserProfile } from '../types/finance';
+import { Account, Budget, Transaction, UserProfile } from '../types/finance';
 import { CategoryItem } from './storageService';
 import {
   serializeTransactionForFirestore,
   serializeAccountForFirestore,
   serializeCategoryForFirestore,
   serializeUserProfileForFirestore,
+  serializeBudgetForFirestore,
 } from './firestoreSerializer';
 
 export class CloudFirestoreService {
@@ -308,6 +309,71 @@ export class CloudFirestoreService {
     const path = `users/${uid}/categories/${catId}`;
     try {
       await deleteDoc(doc(db, 'users', uid, 'categories', catId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  }
+
+  /**
+   * Fetches all budgets for a user
+   */
+  static async getBudgets(uid: string): Promise<Budget[]> {
+    const path = `users/${uid}/budgets`;
+    try {
+      const colRef = collection(db, 'users', uid, 'budgets');
+      const snap = await getDocs(colRef);
+      return snap.docs.map((d) => d.data() as Budget);
+    } catch (error) {
+      console.warn('Failed to get cloud budgets:', error);
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  /**
+   * Real-time listener for user budgets across devices
+   */
+  static subscribeToBudgets(
+    uid: string,
+    onData: (budgets: Budget[]) => void,
+    onError?: (err: any) => void
+  ): () => void {
+    const path = `users/${uid}/budgets`;
+    return onSnapshot(
+      collection(db, 'users', uid, 'budgets'),
+      (snap) => {
+        const budgets = snap.docs.map((d) => d.data() as Budget);
+        onData(budgets);
+      },
+      (error) => {
+        if (onError) onError(error);
+        handleFirestoreError(error, OperationType.LIST, path);
+      }
+    );
+  }
+
+  /**
+   * Saves a budget to Firestore with type validation
+   */
+  static async saveBudget(uid: string, budget: Budget): Promise<void> {
+    if (!uid || !budget) throw new Error('Missing UID or Budget for saveBudget');
+    const path = `users/${uid}/budgets/${budget.id}`;
+    try {
+      const sanitized = serializeBudgetForFirestore(budget, uid);
+      await setDoc(doc(db, 'users', uid, 'budgets', budget.id), sanitized, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  }
+
+  /**
+   * Deletes a budget from Firestore
+   */
+  static async deleteBudget(uid: string, budgetId: string): Promise<void> {
+    if (!uid || !budgetId) throw new Error('Missing UID or budgetId for deleteBudget');
+    const path = `users/${uid}/budgets/${budgetId}`;
+    try {
+      await deleteDoc(doc(db, 'users', uid, 'budgets', budgetId));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
     }
