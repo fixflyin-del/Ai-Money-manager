@@ -50,9 +50,9 @@ export const DEFAULT_CATEGORIES: CategoryItem[] = [
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
   id: 'usr_aimoney_guest',
-  name: 'Al Money Manager',
+  name: 'AI Money Manager',
   email: '',
-  mobileNumber: '+91 98765 43210',
+  mobileNumber: '',
   preferredCurrency: 'INR',
   storageMode: 'local',
   hasSelectedStorageMode: false,
@@ -100,9 +100,15 @@ export class StorageService {
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
+        // Cleanse any legacy Fixfly or Al Money Manager typo
+        let sanitizedName = parsed.name || 'AI Money Manager';
+        if (sanitizedName === 'Fixfly' || sanitizedName === 'Al Money Manager') {
+          sanitizedName = 'AI Money Manager';
+        }
         return {
           ...DEFAULT_USER_PROFILE,
           ...parsed,
+          name: sanitizedName,
           hasSelectedStorageMode: localStorage.getItem(this.getKey('aimoney_mode_selected')) === 'true',
         };
       }

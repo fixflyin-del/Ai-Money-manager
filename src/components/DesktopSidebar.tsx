@@ -49,8 +49,19 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
 }) => {
   const prefCurrency = profile.preferredCurrency;
   const isPro = EntitlementService.isPro(profile);
-  const displayName = profile.name.trim() || 'AI Money Manager';
-  const initialLetter = displayName.charAt(0).toUpperCase();
+  const isLoggedIn = Boolean(
+    profile.firebaseUid &&
+    profile.firebaseUid !== 'guest' &&
+    profile.storageMode === 'cloud'
+  );
+
+  const cleanName = profile.name.trim();
+  const isDefaultOrGeneric = !cleanName || cleanName.toLowerCase() === 'ai money manager' || cleanName.toLowerCase() === 'fixfly';
+  const displayName = isLoggedIn
+    ? (!isDefaultOrGeneric ? cleanName : (profile.email ? profile.email.split('@')[0] : 'Member'))
+    : 'AI Money Manager';
+  const subtitle = isLoggedIn ? 'Verified Member' : 'Guest • Local Mode';
+  const initialLetter = isLoggedIn ? displayName.charAt(0).toUpperCase() : 'AI';
 
   const navItems = [
     { id: 'home' as NavTab, label: 'Home / Dashboard', icon: Home, isProRequired: false },
@@ -163,9 +174,9 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               <span className="text-xs font-bold text-slate-800 dark:text-white truncate block max-w-[120px]">
                 {displayName}
               </span>
-              <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>Verified Member</span>
+              <div className={`flex items-center gap-1 text-[10px] font-bold ${isLoggedIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                {isLoggedIn && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
+                <span>{subtitle}</span>
               </div>
             </div>
           </div>

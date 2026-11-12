@@ -50,13 +50,20 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
 }) => {
   const prefCurrency = profile.preferredCurrency;
   const isPro = EntitlementService.isPro(profile);
-  const displayName = profile.name.trim() || 'Al Money Manager';
+  
+  // Real authentication check
+  const isLoggedIn = Boolean(profile.firebaseUid && profile.firebaseUid !== 'guest' && profile.storageMode === 'cloud');
+  const userActualName = (profile.name && profile.name !== 'AI Money Manager' && profile.name !== 'Al Money Manager' && profile.name !== 'Fixfly')
+    ? profile.name
+    : (profile.email ? profile.email.split('@')[0] : '');
+
+  const drawerProfileName = isLoggedIn ? (userActualName || 'Member') : 'AI Money Manager';
 
   return (
     <>
       {/* Top Global Header (Screenshots 1, 2, 4, 5, 7, 8) */}
       <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between shadow-2xs md:hidden">
-        {/* Left: Hamburger & User Display Name */}
+        {/* Left: Hamburger & Main App Header Title */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={() => setIsDrawerOpen(true)}
@@ -67,10 +74,10 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
           </button>
 
           <span
-            className="text-sm sm:text-base font-extrabold text-[#0B1528] dark:text-white tracking-tight truncate max-w-[130px] sm:max-w-xs"
-            title={displayName}
+            className="text-sm sm:text-base font-extrabold text-[#0B1528] dark:text-white tracking-tight truncate max-w-[170px] sm:max-w-xs"
+            title="AI Money Manager"
           >
-            {displayName}
+            AI Money Manager
           </span>
         </div>
 
@@ -115,12 +122,18 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                   </div>
                   <div>
                     <h3 className="font-extrabold text-sm text-[#0B1528] dark:text-white leading-tight truncate max-w-[180px]">
-                      {displayName}
+                      {drawerProfileName}
                     </h3>
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Verified Member</span>
-                    </div>
+                    {isLoggedIn ? (
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Verified Member</span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 block">
+                        Guest • Local Mode
+                      </span>
+                    )}
                   </div>
                 </div>
 

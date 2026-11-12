@@ -723,8 +723,8 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
               <span className="text-xs font-extrabold text-[#0B1528] dark:text-white">
                 Select Account for Deep AI Analysis
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {smartAnalysis.targetAccount ? smartAnalysis.targetAccount.name : 'Consolidated Portfolio'}
+              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
+                {smartAnalysis.targetAccount ? smartAnalysis.targetAccount.name : 'All Accounts Overview • Live Summary'}
               </span>
             </div>
 
@@ -739,7 +739,7 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
                 }`}
               >
                 <Layers className="w-3.5 h-3.5 text-blue-600" />
-                <span>All Accounts Combined</span>
+                <span>All Accounts Overview • Live Summary</span>
               </button>
 
               {accounts.map((acc) => (

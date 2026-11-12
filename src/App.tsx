@@ -586,12 +586,24 @@ export default function App() {
           </div>
         </div>
         <div className="text-center space-y-1">
-          <h2 className="text-base font-extrabold tracking-tight">FixFly AI Money Manager</h2>
+          <h2 className="text-base font-extrabold tracking-tight">AI Money Manager</h2>
           <p className="text-xs text-slate-400">Connecting to secure financial ledger...</p>
         </div>
       </div>
     );
   }
+
+  const isUserLoggedIn = Boolean(
+    profile.firebaseUid &&
+    profile.firebaseUid !== 'guest' &&
+    profile.storageMode === 'cloud'
+  );
+  const cleanProfileName = profile.name.trim();
+  const isGenericOrFixfly = !cleanProfileName || cleanProfileName.toLowerCase() === 'ai money manager' || cleanProfileName.toLowerCase() === 'fixfly';
+  const headerUserName = isUserLoggedIn
+    ? (!isGenericOrFixfly ? cleanProfileName : (profile.email ? profile.email.split('@')[0] : 'Member'))
+    : 'AI Money Manager';
+  const headerUserInitial = isUserLoggedIn ? headerUserName.charAt(0).toUpperCase() : 'AI';
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0B1120] text-slate-800 dark:text-slate-100 flex flex-col md:flex-row antialiased transition-colors duration-200">
@@ -599,6 +611,9 @@ export default function App() {
       <WelcomeModal
         isOpen={isWelcomeModalOpen}
         onClose={() => setIsWelcomeModalOpen(false)}
+        onAuthenticated={() => {
+          setIsWelcomeModalOpen(false);
+        }}
         onSelectGoogle={handleSelectGoogleAuth}
         onSelectLocal={handleSelectLocalStorage}
       />
@@ -649,7 +664,7 @@ export default function App() {
           <div>
             <h2 className="text-base font-extrabold text-[#0B1528] dark:text-white capitalize">
               {activeTab === 'home'
-                ? 'Dashboard Overview'
+                ? 'AI Money Manager'
                 : activeTab === 'manage'
                 ? 'Manage Accounts & Categories'
                 : activeTab === 'analysis'
@@ -659,9 +674,9 @@ export default function App() {
                 : 'Profile, Currency & Security'}
             </h2>
             <p className="text-xs text-slate-400">
-              {profile.firebaseUid
+              {isUserLoggedIn
                 ? 'Cloud Firestore Synced · Real-time ledger active'
-                : 'Local Secure Ledger'}
+                : 'Local Secure Ledger • Guest Mode'}
             </p>
           </div>
 
@@ -701,11 +716,15 @@ export default function App() {
               onClick={() => setActiveTab('profile')}
               className="flex items-center gap-2 pl-2 pr-3 py-1 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-full bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs flex items-center justify-center">
-                {profile.name.charAt(0).toUpperCase()}
+              <div className="w-8 h-8 rounded-full bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs flex items-center justify-center overflow-hidden">
+                {profile.photoUrl ? (
+                  <img src={profile.photoUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  headerUserInitial
+                )}
               </div>
-              <span className="text-xs font-bold text-slate-800 dark:text-white max-w-[100px] truncate">
-                {profile.name}
+              <span className="text-xs font-bold text-slate-800 dark:text-white max-w-[120px] truncate">
+                {headerUserName}
               </span>
             </button>
           </div>

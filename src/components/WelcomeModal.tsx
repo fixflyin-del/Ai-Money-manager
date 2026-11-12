@@ -4,7 +4,19 @@
  */
 
 import React, { useState } from 'react';
-import { ShieldCheck, HardDrive, X, Mail, Lock, KeyRound, Loader2, CheckCircle2 } from 'lucide-react';
+import {
+  ShieldCheck,
+  HardDrive,
+  X,
+  Mail,
+  Lock,
+  User as UserIcon,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  KeyRound,
+} from 'lucide-react';
 import {
   auth,
   googleProvider,
@@ -14,8 +26,10 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  updateProfile,
   User,
 } from 'firebase/auth';
+import { StorageService } from '../services/storageService';
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -36,60 +50,96 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
+  const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   if (!isOpen) return null;
 
-  // Real Google Sign-In with genuine Google account chooser
+  const mapAuthError = (err: any): string => {
+    const code = err?.code || '';
+    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+      return 'Incorrect email or password. Please verify and try again.';
+    }
+    if (code === 'auth/email-already-in-use') {
+      return 'An account already exists with this email. Please switch to Sign In.';
+    }
+    if (code === 'auth/weak-password') {
+      return 'Password is too weak. Please choose at least 6 characters.';
+    }
+    if (code === 'auth/invalid-email') {
+      return 'Please enter a valid email address.';
+    }
+    if (code === 'auth/too-many-requests') {
+      return 'Access temporarily locked due to many failed attempts. Try again later or reset password.';
+    }
+    if (code === 'auth/network-request-failed') {
+      return 'Network connection issue. Please check your internet connection.';
+    }
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+      return 'Google sign-in popup was cancelled.';
+    }
+    return err?.message || 'Authentication error. Please try again.';
+  };
+
+  // Google Sign-In
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setErrorMessage('');
     try {
       const res = await signInWithPopup(auth, googleProvider);
       if (res.user) {
+        StorageService.setActiveUser(res.user.uid);
         if (onAuthenticated) onAuthenticated(res.user);
         if (onSelectGoogle) onSelectGoogle();
         onClose();
       }
     } catch (err: any) {
       console.error('Firebase Google Sign-In error:', err);
-      setErrorMessage(err?.message || 'Google Sign-In failed. Please try again.');
+      setErrorMessage(mapAuthError(err));
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Real Email & Password Sign-In
+  // Email & Password Sign-In
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email.trim() || !password) {
+      setErrorMessage('Please enter both email and password.');
+      return;
+    }
     setIsLoading(true);
     setErrorMessage('');
     try {
       const res = await signInWithEmailAndPassword(auth, email.trim(), password);
       if (res.user) {
+        StorageService.setActiveUser(res.user.uid);
         if (onAuthenticated) onAuthenticated(res.user);
         onClose();
       }
     } catch (err: any) {
       console.error('Firebase Email Sign-In error:', err);
-      setErrorMessage(err?.message || 'Invalid email or password.');
+      setErrorMessage(mapAuthError(err));
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Real Email & Password Sign-Up
+  // Email & Password Sign-Up
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password !== confirmPassword) {
-      setErrorMessage('Passwords do not match.');
+    if (!email.trim() || !password) {
+      setErrorMessage('Please fill in all required fields.');
       return;
     }
     if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.');
+      setErrorMessage('Password must be at least 6 characters long.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match. Please re-enter.');
       return;
     }
 
@@ -98,12 +148,20 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
     try {
       const res = await createUserWithEmailAndPassword(auth, email.trim(), password);
       if (res.user) {
+        if (fullName.trim()) {
+          try {
+            await updateProfile(res.user, { displayName: fullName.trim() });
+          } catch (profileErr) {
+            console.warn('Profile name update skipped:', profileErr);
+          }
+        }
+        StorageService.setActiveUser(res.user.uid);
         if (onAuthenticated) onAuthenticated(res.user);
         onClose();
       }
     } catch (err: any) {
       console.error('Firebase Sign-Up error:', err);
-      setErrorMessage(err?.message || 'Sign-up failed. This email may already be in use.');
+      setErrorMessage(mapAuthError(err));
     } finally {
       setIsLoading(false);
     }
@@ -113,20 +171,21 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      setErrorMessage('Please enter your email address.');
+      setErrorMessage('Please enter your email address to receive reset instructions.');
       return;
     }
     setIsLoading(true);
     setErrorMessage('');
     try {
       await sendPasswordResetEmail(auth, email.trim());
-      setSuccessMessage('Password reset link sent to your email. Check your inbox!');
+      setSuccessMessage('Password reset instructions sent! Please check your email inbox.');
       setTimeout(() => {
         setAuthMode('email_login');
         setSuccessMessage('');
       }, 3000);
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to send password reset email.');
+      console.error('Firebase password reset error:', err);
+      setErrorMessage(mapAuthError(err));
     } finally {
       setIsLoading(false);
     }
@@ -138,7 +197,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full transition cursor-pointer"
+          className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           aria-label="Close"
         >
           <X className="w-5 h-5" />
@@ -146,42 +205,42 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
         {/* Heading & Shield Icon */}
         <div className="flex items-start gap-3 mb-5 pr-6">
-          <div className="w-10 h-10 rounded-xl bg-[#0B1528] flex items-center justify-center text-white shrink-0 mt-0.5">
+          <div className="w-10 h-10 rounded-xl bg-[#0B1528] dark:bg-blue-600 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-sm">
             <ShieldCheck className="w-5 h-5 text-white" />
           </div>
           <div>
             <h2 className="text-base font-extrabold text-[#0B1528] dark:text-white leading-tight">
-              Welcome to AI Money Manager
+              AI Money Manager
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Choose how you want to save your accounts & financial data
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Secure Ledger & Cloud Synchronization
             </p>
           </div>
         </div>
 
         {/* Error / Success Alerts */}
         {errorMessage && (
-          <div className="mb-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 font-medium">
-            {errorMessage}
+          <div className="mb-3.5 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 font-medium flex items-start gap-2 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+            <div className="flex-1">{errorMessage}</div>
           </div>
         )}
         {successMessage && (
-          <div className="mb-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>{successMessage}</span>
+          <div className="mb-3.5 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="flex-1">{successMessage}</div>
           </div>
         )}
 
-        {/* VIEW 1: CHOOSER (Screenshot 3 + options) */}
+        {/* VIEW 1: CHOOSER (Google, Local, or Email) */}
         {authMode === 'chooser' && (
           <div className="space-y-3">
-            {/* Option 1: Continue with Google Signup (Screenshot 3 Dark Navy Card) */}
+            {/* Option 1: Continue with Google Signup */}
             <button
               disabled={isLoading}
               onClick={handleGoogleSignIn}
               className="w-full text-left p-4 rounded-2xl bg-[#0B1528] hover:bg-[#111e38] text-white transition-all shadow-md active:scale-[0.99] cursor-pointer flex items-center gap-3.5"
             >
-              {/* Google Logo */}
               <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0 shadow-xs">
                 {isLoading ? (
                   <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
@@ -209,198 +268,315 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
               <div className="min-w-0 flex-1">
                 <div className="font-bold text-xs sm:text-sm text-white leading-snug">
-                  Continue with Google Signup & Save Your Data
+                  Continue with Google
                 </div>
                 <div className="text-[11px] text-slate-300 mt-0.5 leading-tight">
-                  Direct Google account approval · Safe cloud sync & backup
+                  One-tap sign-in · Safe cloud backup & multi-device sync
                 </div>
               </div>
             </button>
 
-            {/* Option 2: Continue with Local Storage (Screenshot 3 Light Grey Card) */}
+            {/* Option 2: Email & Password */}
             <button
-              onClick={onSelectLocal}
-              className="w-full text-left p-4 rounded-2xl bg-[#F1F5F9] dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100 transition-all border border-slate-200/90 dark:border-slate-700 active:scale-[0.99] cursor-pointer flex items-center gap-3.5"
+              onClick={() => {
+                setAuthMode('email_login');
+                setErrorMessage('');
+              }}
+              className="w-full text-left p-4 rounded-2xl bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all border border-slate-200/90 dark:border-slate-700 active:scale-[0.99] cursor-pointer flex items-center gap-3.5 shadow-xs"
             >
-              <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-700 border border-slate-200/80 dark:border-slate-600 flex items-center justify-center shrink-0 shadow-xs">
-                <HardDrive className="w-5 h-5 text-slate-700 dark:text-slate-200" />
+              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200/60 dark:border-blue-900/40 flex items-center justify-center shrink-0">
+                <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-snug">
-                  Continue with Local Storage
+                  Sign In with Email & Password
                 </div>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                  Start immediately without sign-in · Connect Google anytime in Profile
+                  Login or create a password-protected cloud account
                 </div>
               </div>
             </button>
 
-            {/* Email Sign-In / Sign-Up Alternative */}
-            <div className="pt-2 text-center">
-              <button
-                onClick={() => setAuthMode('email_login')}
-                className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer inline-flex items-center gap-1.5"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                <span>Or Sign In with Email & Password</span>
-              </button>
-            </div>
+            {/* Option 3: Continue with Local Storage */}
+            <button
+              onClick={onSelectLocal}
+              className="w-full text-left p-4 rounded-2xl bg-[#F8FAFC] dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-800 dark:text-slate-100 transition-all border border-slate-200/70 dark:border-slate-700/70 active:scale-[0.99] cursor-pointer flex items-center gap-3.5"
+            >
+              <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-700 border border-slate-200/80 dark:border-slate-600 flex items-center justify-center shrink-0 shadow-2xs">
+                <HardDrive className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-snug">
+                  Continue as Guest (Local Storage)
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                  Immediate offline access · Stored strictly on this device
+                </div>
+              </div>
+            </button>
           </div>
         )}
 
-        {/* VIEW 2: EMAIL LOGIN */}
-        {authMode === 'email_login' && (
-          <form onSubmit={handleEmailSignIn} className="space-y-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setAuthMode('forgot_password')}
-                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  Forgot?
-                </button>
-              </div>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 rounded-xl bg-[#0B1528] hover:bg-[#111e38] text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
-            >
-              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>{isLoading ? 'Signing In...' : 'Sign In'}</span>
-            </button>
-
-            <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
+        {/* VIEW 2 & 3: EMAIL TABS (SIGN IN vs CREATE ACCOUNT) */}
+        {(authMode === 'email_login' || authMode === 'email_signup') && (
+          <div className="space-y-3.5">
+            {/* Tab Switcher */}
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
               <button
                 type="button"
-                onClick={() => setAuthMode('chooser')}
-                className="text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                onClick={() => {
+                  setAuthMode('email_login');
+                  setErrorMessage('');
+                }}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  authMode === 'email_login'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+                }`}
               >
-                ← Back
+                Sign In
               </button>
               <button
                 type="button"
-                onClick={() => setAuthMode('email_signup')}
-                className="font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                onClick={() => {
+                  setAuthMode('email_signup');
+                  setErrorMessage('');
+                }}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  authMode === 'email_signup'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+                }`}
               >
                 Create Account
               </button>
             </div>
-          </form>
-        )}
 
-        {/* VIEW 3: EMAIL SIGN UP */}
-        {authMode === 'email_signup' && (
-          <form onSubmit={handleEmailSignUp} className="space-y-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
+            {/* SIGN IN FORM */}
+            {authMode === 'email_login' && (
+              <form onSubmit={handleEmailSignIn} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (errorMessage) setErrorMessage('');
+                      }}
+                      placeholder="name@example.com"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Create Password
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('forgot_password');
+                        setErrorMessage('');
+                      }}
+                      className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      required
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (errorMessage) setErrorMessage('');
+                      }}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Repeat password"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 rounded-xl bg-[#0B1528] hover:bg-[#111e38] text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2 mt-2"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-4 h-4" />
+                  )}
+                  <span>{isLoading ? 'Signing In...' : 'Sign In to Cloud'}</span>
+                </button>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 rounded-xl bg-[#0B1528] hover:bg-[#111e38] text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
-            >
-              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>{isLoading ? 'Creating Account...' : 'Create Account & Start'}</span>
-            </button>
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('chooser');
+                      setErrorMessage('');
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 font-medium cursor-pointer"
+                  >
+                    ← Other Sign-In Options
+                  </button>
+                </div>
+              </form>
+            )}
 
-            <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
-              <button
-                type="button"
-                onClick={() => setAuthMode('email_login')}
-                className="text-slate-500 hover:text-slate-800 dark:text-slate-400"
-              >
-                ← Already have account?
-              </button>
-            </div>
-          </form>
+            {/* SIGN UP FORM */}
+            {authMode === 'email_signup' && (
+              <form onSubmit={handleEmailSignUp} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Full Name (Optional)
+                  </label>
+                  <div className="relative">
+                    <UserIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      autoComplete="name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Your Name"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (errorMessage) setErrorMessage('');
+                      }}
+                      placeholder="name@example.com"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Password (Min 6 Characters)
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      required
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (errorMessage) setErrorMessage('');
+                      }}
+                      placeholder="At least 6 characters"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      required
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (errorMessage) setErrorMessage('');
+                      }}
+                      placeholder="Repeat password"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 rounded-xl bg-[#0B1528] hover:bg-[#111e38] text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2 mt-2"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-4 h-4" />
+                  )}
+                  <span>{isLoading ? 'Creating Account...' : 'Register & Sync Cloud'}</span>
+                </button>
+
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('chooser');
+                      setErrorMessage('');
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 font-medium cursor-pointer"
+                  >
+                    ← Other Sign-In Options
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         )}
 
         {/* VIEW 4: FORGOT PASSWORD */}
         {authMode === 'forgot_password' && (
           <form onSubmit={handlePasswordReset} className="space-y-3.5">
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Enter your registered email address to receive a secure password reset link.
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Enter your registered email address and we'll send you a secure link to reset your password.
             </p>
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                 Email Address
               </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-              />
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errorMessage) setErrorMessage('');
+                  }}
+                  placeholder="name@example.com"
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
             </div>
 
             <button
@@ -409,14 +585,17 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
               className="w-full py-3 rounded-xl bg-[#0B1528] hover:bg-[#111e38] text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
             >
               {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>{isLoading ? 'Sending Link...' : 'Send Reset Link'}</span>
+              <span>{isLoading ? 'Sending Link...' : 'Send Password Reset Email'}</span>
             </button>
 
             <div className="pt-2 text-center">
               <button
                 type="button"
-                onClick={() => setAuthMode('email_login')}
-                className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                onClick={() => {
+                  setAuthMode('email_login');
+                  setErrorMessage('');
+                }}
+                className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 font-medium cursor-pointer"
               >
                 ← Back to Sign In
               </button>

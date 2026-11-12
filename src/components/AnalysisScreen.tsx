@@ -322,7 +322,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({
               Select Account for Analysis
             </label>
             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
-              {selectedAccountId === 'all' ? 'All Accounts Consolidated' : `Selected: ${currentAccount?.name}`}
+              {selectedAccountId === 'all' ? 'All Accounts Overview • Live Summary' : `Selected: ${currentAccount?.name}`}
             </span>
           </div>
 
