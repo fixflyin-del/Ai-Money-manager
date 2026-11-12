@@ -26,7 +26,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      
+          cache: npm
 
       - name: Install Node Dependencies
         run: npm ci
@@ -40,11 +40,19 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
+      # Use the Android SDK already installed on GitHub's Ubuntu runner.
+      # Do not use android-actions/setup-android: it requests the removed
+      # legacy "tools" package and fails on current Android command-line tools.
+      - name: Install Required Android SDK Packages
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
+          set -euo pipefail
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "Android sdkmanager was not found on the GitHub runner."
+            exit 1
+          fi
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
@@ -53,24 +61,22 @@ jobs:
 
       - name: Build Release APK and AAB
         working-directory: android
+        run: ./gradlew assembleRelease bundleRelease --stacktrace
+
+      - name: Verify APK and AAB Were Created
         run: |
-          ./gradlew assembleRelease bundleRelease --stacktrace
+          set -euo pipefail
+          test -n "$(find android/app/build/outputs/apk/release -name '*.apk' -print -quit)"
+          test -n "$(find android/app/build/outputs/bundle/release -name '*.aab' -print -quit)"
 
       - name: Rename Artifacts
         run: |
+          set -euo pipefail
           mkdir -p release-output
-          # Find APK
-          APK_PATH=$(find android/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
-          if [ -n "$APK_PATH" ]; then
-            cp "$APK_PATH" release-output/AI-Money-Manager-v6.1.4.apk
-            echo "APK ready at release-output/AI-Money-Manager-v6.1.4.apk"
-          fi
-          # Find AAB
-          AAB_PATH=$(find android/app/build/outputs/bundle/release/ -name "*.aab" | head -n 1)
-          if [ -n "$AAB_PATH" ]; then
-            cp "$AAB_PATH" release-output/AI-Money-Manager-v6.1.4.aab
-            echo "AAB ready at release-output/AI-Money-Manager-v6.1.4.aab"
-          fi
+          APK_PATH="$(find android/app/build/outputs/apk/release -name '*.apk' -print -quit)"
+          AAB_PATH="$(find android/app/build/outputs/bundle/release -name '*.aab' -print -quit)"
+          cp "$APK_PATH" release-output/AI-Money-Manager-v6.1.4.apk
+          cp "$AAB_PATH" release-output/AI-Money-Manager-v6.1.4.aab
 
       - name: Upload APK and AAB Artifacts
         uses: actions/upload-artifact@v4
@@ -89,12 +95,6 @@ jobs:
             - Package: `com.aimoneymanager.app`
             - Version Name: `6.1.4`
             - Version Code: `14`
-            - Compact horizontal account selection cards with icon and real balance
-            - Deep AI Smart Analysis with account-specific burn rate and runway projections
-            - Fully working Category Budget Planner with spending velocity and overspending alerts
-            - Account-wise financial analysis with strict transfer separation
-            - Permanent Firestore persistence & zero undefined field values
-            - Official Website & Legal Portal at https://aimoneymanager.pro
             - 100% Free Launch Mode preserved
           files: |
             release-output/AI-Money-Manager-v6.1.4.apk
