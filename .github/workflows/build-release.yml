@@ -29,7 +29,7 @@ jobs:
       
 
       - name: Install Node Dependencies
-        run: npm ci || npm install
+        run: npm ci
 
       - name: Build Web Application and Sync Android Assets
         run: node scripts/build-android.js
@@ -77,8 +77,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: AI Money Manager Release ${{ github.ref_name }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v6.1.4' }}
+          name: AI Money Manager Release ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v6.1.4' }}
           body: |
             ## Fixfly AI Money Manager v6.1.4 Release
             - Package: `com.aimoneymanager.app`
