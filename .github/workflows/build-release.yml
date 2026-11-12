@@ -47,13 +47,16 @@ jobs:
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
-          set -euo pipefail
+          set -eu
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
           if [ -z "$SDKMANAGER" ]; then
             echo "Android sdkmanager was not found on the GitHub runner."
             exit 1
           fi
-          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
+          # sdkmanager exits after consuming all license answers; the yes
+          # process may receive SIGPIPE when that happens. Do not let that
+          # harmless upstream exit abort the workflow.
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses || true
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Grant Execute Permission to Gradlew
