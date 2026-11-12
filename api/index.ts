@@ -711,12 +711,7 @@ const aiDailyUsageMap = new Map<string, { count: number; date: string }>();
 
 app.get('/api/ai/quota-status', (req: Request, res: Response) => {
   const userId = (req.query.userId as string) || req.ip || 'guest';
-  const isPro = req.query.isPro === 'true';
   const today = new Date().toISOString().slice(0, 10);
-
-  if (IS_TEMPORARY_FREE_LAUNCH || isPro) {
-    return res.json({ isPro: true, questionsRemaining: 999999, limit: 999999, date: today, isFreeLaunch: true });
-  }
 
   const record = aiDailyUsageMap.get(userId);
   if (!record || record.date !== today) {
@@ -727,30 +722,26 @@ app.get('/api/ai/quota-status', (req: Request, res: Response) => {
   return res.json({ isPro: false, questionsRemaining: remaining, limit: 1, date: today });
 });
 
-// C. AI Chat
+// C. AI Chat (Strictly limited to 1 Free query per user per day to protect admin AI credits)
 app.post('/api/ai/chat', async (req: Request, res: Response) => {
-  const { message, userId = req.ip || 'guest', isPro = false, financialContext = {} } = req.body || {};
+  const { message, userId = req.ip || 'guest', financialContext = {} } = req.body || {};
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'Message is required' });
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const effectivePro = IS_TEMPORARY_FREE_LAUNCH || Boolean(isPro);
 
   try {
-
-    if (!effectivePro) {
-      const record = aiDailyUsageMap.get(userId);
-      if (record && record.date === today && record.count >= 1) {
-        return res.status(429).json({
-          error: 'Daily AI limit reached',
-          quotaExceeded: true,
-          message:
-            'You have used your free AI question for today. Upgrade to Premium to enjoy unlimited AI chat and advanced financial intelligence.',
-          questionsRemaining: 0,
-        });
-      }
+    const record = aiDailyUsageMap.get(userId);
+    if (record && record.date === today && record.count >= 1) {
+      return res.status(429).json({
+        error: 'Daily limit reached',
+        quotaExceeded: true,
+        limitReached: true,
+        message: 'Daily limit reached. Come back tomorrow!',
+        questionsRemaining: 0,
+      });
     }
 
     const contextPrompt = `You are the AI Financial Intelligence Manager for "AI Money Manager".
@@ -770,32 +761,41 @@ Keep your response concise, helpful, practical, and clear.`;
 
     let reply = '';
     if (ai) {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: contextPrompt,
-      });
-      reply =
-        response.text || 'I analyzed your accounts. Your financial figures are computed directly from your authorized ledger.';
+      try {
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 4000));
+        const aiPromise = ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: contextPrompt,
+        });
+        const response: any = await Promise.race([aiPromise, timeoutPromise]);
+        reply =
+          response.text || 'I analyzed your accounts. Your financial figures are computed directly from your authorized ledger.';
+      } catch {
+        reply = `Based on your accounts: Current Total Balance is ${financialContext.totalBalance || '0'}, this month's recorded expense is ${financialContext.thisMonthExpense || '0'}.`;
+      }
     } else {
       reply = `Based on your accounts: Current Total Balance is ${financialContext.totalBalance || '0'}, this month's recorded expense is ${financialContext.thisMonthExpense || '0'}.`;
     }
 
-    if (!isPro) {
-      const currentRecord = aiDailyUsageMap.get(userId);
-      const currentCount = currentRecord && currentRecord.date === today ? currentRecord.count : 0;
-      aiDailyUsageMap.set(userId, { count: currentCount + 1, date: today });
-    }
+    const currentRecord = aiDailyUsageMap.get(userId);
+    const currentCount = currentRecord && currentRecord.date === today ? currentRecord.count : 0;
+    aiDailyUsageMap.set(userId, { count: currentCount + 1, date: today });
 
-    const questionsRemaining = isPro ? 999999 : 0;
-    return res.json({ reply, questionsRemaining, isPro });
+    return res.json({ reply, questionsRemaining: 0, isPro: false, dailyLimitReached: true });
   } catch (error: any) {
     console.error('AI Chat Error (using ledger reserve fallback):', error?.message);
     const balance = financialContext.totalBalance || '0';
     const currency = financialContext.currency || 'INR';
+
+    const currentRecord = aiDailyUsageMap.get(userId);
+    const currentCount = currentRecord && currentRecord.date === today ? currentRecord.count : 0;
+    aiDailyUsageMap.set(userId, { count: currentCount + 1, date: today });
+
     return res.json({
       reply: `Based on your accounts: Current Total Balance is ${currency} ${balance}. (Computed directly from your authorized ledger records).`,
-      questionsRemaining: isPro ? 999999 : 0,
-      isPro,
+      questionsRemaining: 0,
+      isPro: false,
+      dailyLimitReached: true,
       fallback: true,
     });
   }

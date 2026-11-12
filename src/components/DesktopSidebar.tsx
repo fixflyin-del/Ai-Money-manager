@@ -21,6 +21,7 @@ import {
   Wallet,
   Monitor,
   ExternalLink,
+  CheckCircle2,
 } from 'lucide-react';
 import { NavTab } from './HeaderAndDrawer';
 import { UserProfile } from '../types/finance';
@@ -147,38 +148,8 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         </nav>
       </div>
 
-      {/* Bottom Section: Upgrade Banner & User Status */}
+      {/* Bottom Section: User Status Bar */}
       <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-        {!isPro ? (
-          <button
-            onClick={onOpenUpgrade}
-            className="w-full p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white font-bold text-xs flex items-center justify-between shadow-md hover:from-amber-600 hover:to-amber-700 active:scale-[0.99] transition cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Crown className="w-4 h-4 text-white" />
-              <div className="text-left">
-                <span className="block leading-tight">Upgrade to Premium</span>
-                <span className="text-[10px] text-amber-100 font-normal">
-                  Unlock all 6 charts & unlimited AI
-                </span>
-              </div>
-            </div>
-            <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-          </button>
-        ) : (
-          <button
-            onClick={onOpenUpgrade}
-            className="w-full p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 flex items-center justify-between text-xs font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Crown className="w-4 h-4 text-amber-500 shrink-0" />
-              <span>Launch Pass · Pro Unlocked</span>
-            </div>
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-          </button>
-        )}
-
-        {/* User Status Bar */}
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
@@ -189,12 +160,13 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               )}
             </div>
             <div className="min-w-0">
-              <span className="text-xs font-bold text-slate-800 dark:text-white truncate block max-w-[100px]">
+              <span className="text-xs font-bold text-slate-800 dark:text-white truncate block max-w-[120px]">
                 {displayName}
               </span>
-              <span className="text-[10px] text-slate-400 block truncate">
-                {profile.storageMode === 'cloud' ? 'Google Synced' : 'Local Storage'}
-              </span>
+              <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="w-3 h-3" />
+                <span>Verified Member</span>
+              </div>
             </div>
           </div>
 

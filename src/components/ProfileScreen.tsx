@@ -244,15 +244,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 : 'Stored Locally on Android · Sign in with Google anytime to sync'}
             </div>
 
-            <button
-              onClick={onOpenUpgrade}
-              className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1 cursor-pointer hover:underline"
-            >
-              <Crown className="w-3 h-3 text-amber-500" />
-              <span>
-                {EntitlementService.isPro(profile) ? 'Pro Features Unlocked (Launch Free)' : 'Free Plan · Upgrade to Premium'}
-              </span>
-            </button>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 mt-1.5 w-fit">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Verified Member</span>
+            </div>
           </div>
         </div>
 

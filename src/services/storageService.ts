@@ -485,4 +485,35 @@ export class StorageService {
     localStorage.removeItem(this.getKey('aimoney_categories'));
     localStorage.removeItem(this.getKey('aimoney_profile'));
   }
+
+  /**
+   * Strictly limits free daily AI queries to 1 per user per day to protect admin AI credits.
+   */
+  static getDailyAiQuota(userId: string): { remaining: number; date: string } {
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `aimoney_daily_ai_${userId || 'guest'}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.date === today) {
+          const used = Number(parsed.used) || 0;
+          return { remaining: Math.max(0, 1 - used), date: today };
+        }
+      }
+    } catch {
+      // Fallback
+    }
+    return { remaining: 1, date: today };
+  }
+
+  static consumeDailyAiQuota(userId: string): void {
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `aimoney_daily_ai_${userId || 'guest'}`;
+    try {
+      localStorage.setItem(key, JSON.stringify({ date: today, used: 1 }));
+    } catch {
+      // Ignore
+    }
+  }
 }

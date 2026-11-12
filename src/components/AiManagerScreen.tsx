@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Crown,
   Sparkles,
   Brain,
   Lock,
@@ -27,19 +26,24 @@ import {
   Check,
   X,
   RefreshCw,
+  Zap,
+  Activity,
+  ShieldCheck,
+  Clock,
+  Wallet,
+  Coins,
 } from 'lucide-react';
 import { Account, Budget, CurrencyCode, Transaction, UserProfile } from '../types/finance';
 import { convertCurrency, formatCurrency, getCachedRates } from '../services/currencyService';
 import { CloudFirestoreService } from '../services/cloudFirestoreService';
 import { StorageService } from '../services/storageService';
-import { EntitlementService } from '../services/entitlementService';
 import { DynamicIcon } from './IconAndColorPicker';
 
 interface AiManagerScreenProps {
   profile: UserProfile;
   accounts: Account[];
   transactions: Transaction[];
-  onOpenUpgrade: () => void;
+  onOpenUpgrade?: () => void;
   onOpenReceiptScanner?: () => void;
 }
 
@@ -47,44 +51,64 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
   profile,
   accounts,
   transactions,
-  onOpenUpgrade,
 }) => {
   const prefCurrency = profile.preferredCurrency;
   const rates = getCachedRates().rates;
-  const isPro = EntitlementService.isPro(profile);
+  const userId = profile.firebaseUid || profile.id || 'guest_user';
 
   // Active view tab: AI Chat, AI SMART ANALYSIS, or Budget Planning
   const [activeTab, setActiveTab] = useState<'chat' | 'smart_analysis' | 'budget'>('chat');
-  
+
   // Selected account for Smart Analysis
   const [analysisAccountId, setAnalysisAccountId] = useState<string>('all');
 
-  // AI Chat state
+  // Strict 1 Daily AI Query limit tracking per user per day
+  const [questionsLeft, setQuestionsLeft] = useState<number>(() => {
+    const localQuota = StorageService.getDailyAiQuota(userId);
+    return localQuota.remaining;
+  });
+
+  const [hasReachedLimit, setHasReachedLimit] = useState<boolean>(() => {
+    const localQuota = StorageService.getDailyAiQuota(userId);
+    return localQuota.remaining <= 0;
+  });
+
+  // AI Chat conversation history
   const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; text: string; timestamp?: string }[]>([
     {
       role: 'assistant',
-      text: 'Namaste! Main aapka AI Money Manager assistant hoon. Aap mujhse kisi bhi account, iss mahine ke kharche, balance ya category ke baare mein Hindi, Hinglish ya English mein pooch sakte hain.',
+      text: 'Namaste! Main aapka AI Money Manager assistant hoon. Aaj ka aapka 1 free financial query ready hai. Aap mujhse kisi bhi account, iss mahine ke kharche, balance ya savings ke baare mein Hindi, Hinglish ya English mein pooch sakte hain.',
+      timestamp: 'Today',
     },
   ]);
   const [isAnswering, setIsAnswering] = useState(false);
 
-  // Server & local synced daily quota for free tier
-  const [questionsLeft, setQuestionsLeft] = useState<number>(() => {
-    if (isPro) return 999;
-    return profile.dailyAiQuestionsRemaining !== undefined ? profile.dailyAiQuestionsRemaining : 1;
-  });
+  // Sync quota status with server and localStorage on mount
+  useEffect(() => {
+    const local = StorageService.getDailyAiQuota(userId);
+    setQuestionsLeft(local.remaining);
+    setHasReachedLimit(local.remaining <= 0);
 
-  const [hasReachedLimit, setHasReachedLimit] = useState<boolean>(() => {
-    if (isPro) return false;
-    return (profile.dailyAiQuestionsRemaining !== undefined ? profile.dailyAiQuestionsRemaining : 1) <= 0;
-  });
+    fetch(`/api/ai/quota-status?userId=${encodeURIComponent(userId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.questionsRemaining === 'number') {
+          const effectiveRemaining = Math.min(local.remaining, data.questionsRemaining);
+          setQuestionsLeft(effectiveRemaining);
+          setHasReachedLimit(effectiveRemaining <= 0);
+          if (effectiveRemaining <= 0) {
+            StorageService.consumeDailyAiQuota(userId);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [userId]);
 
   // Budgets state
   const [budgets, setBudgets] = useState<Budget[]>(() => {
     const local = StorageService.getBudgets();
     if (local && local.length > 0) return local;
-    // Default initial sensible budgets
     return [
       { id: 'bgt-1', category: 'Food & Dining', monthlyLimit: 8000, currency: prefCurrency, alertThreshold: 80 },
       { id: 'bgt-2', category: 'Shopping', monthlyLimit: 5000, currency: prefCurrency, alertThreshold: 80 },
@@ -97,7 +121,7 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
   const [newBgtLimit, setNewBgtLimit] = useState('');
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
 
-  // Load budgets from Firestore if user is authenticated
+  // Load budgets from Firestore if authenticated
   useEffect(() => {
     const uid = profile.firebaseUid || profile.id;
     if (!uid || uid === 'guest') return;
@@ -118,26 +142,6 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
 
     return () => unsub();
   }, [profile.firebaseUid, profile.id]);
-
-  // Fetch live quota status from server
-  useEffect(() => {
-    if (isPro) {
-      setQuestionsLeft(999);
-      setHasReachedLimit(false);
-      return;
-    }
-
-    const userId = profile.firebaseUid || profile.id || 'guest_user';
-    fetch(`/api/ai/quota-status?userId=${encodeURIComponent(userId)}&isPro=false`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && typeof data.questionsRemaining === 'number') {
-          setQuestionsLeft(data.questionsRemaining);
-          setHasReachedLimit(data.questionsRemaining <= 0);
-        }
-      })
-      .catch(() => {});
-  }, [isPro, profile.firebaseUid, profile.id]);
 
   // Handle Budget Save
   const handleSaveBudget = async (e: React.FormEvent) => {
@@ -190,12 +194,13 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
     }
   };
 
-  // Budget Spending Calculations (Current Month)
+  // Current Month calculations
   const currentMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
   const now = new Date();
   const currentDay = Math.max(1, now.getDate());
   const totalDaysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 
+  // Budget calculations
   const budgetCalculations = useMemo(() => {
     return budgets.map((b) => {
       const spent = transactions
@@ -225,8 +230,7 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
   // Deep AI Smart Analysis Metrics for Selected Account
   const smartAnalysis = useMemo(() => {
     const targetAccount = accounts.find((a) => a.id === analysisAccountId);
-    
-    // Filter transactions for chosen account
+
     const accountTxs = transactions.filter((tx) => {
       if (analysisAccountId === 'all') return true;
       return tx.accountId === analysisAccountId || (tx.type === 'transfer' && tx.toAccountId === analysisAccountId);
@@ -270,14 +274,10 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
       }
     });
 
-    // Daily average burn
     const dailyBurn = monthExpense / currentDay;
     const projectedMonthExpense = dailyBurn * totalDaysInMonth;
-
-    // Runway (days balance will last at current daily burn)
     const runwayDays = dailyBurn > 0 ? Math.round(totalBal / dailyBurn) : 999;
 
-    // Discretionary / Potentially Unnecessary Spends
     const discretionaryCategories = ['entertainment', 'shopping', 'dining', 'food & dining', 'leisure', 'games', 'subscriptions'];
     let discretionaryTotal = 0;
     Object.entries(catSpends).forEach(([cat, val]) => {
@@ -286,10 +286,20 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
       }
     });
 
-    // Frequent small repetitive expenses
-    const recurringMicroSpends = Object.entries(merchantSpends)
-      .filter(([_, data]) => data.count >= 2 && data.total < 3000)
-      .map(([name, data]) => ({ name, ...data }));
+    const topCategory = Object.entries(catSpends).sort((a, b) => b[1] - a[1])[0] || ['None', 0];
+
+    // Compute dynamic Financial Health Score (0 to 100)
+    let healthScore = 70;
+    if (monthIncome > monthExpense && monthIncome > 0) {
+      const savingsRate = (monthIncome - monthExpense) / monthIncome;
+      healthScore += Math.round(savingsRate * 25);
+    } else if (monthExpense > monthIncome && monthIncome > 0) {
+      healthScore -= 20;
+    }
+    if (runwayDays > 90) healthScore += 10;
+    else if (runwayDays < 30) healthScore -= 15;
+    if (discretionaryTotal > monthExpense * 0.5 && monthExpense > 0) healthScore -= 10;
+    healthScore = Math.max(15, Math.min(99, healthScore));
 
     // Financial Risks
     const risks: { title: string; desc: string; severity: 'high' | 'medium' | 'low' }[] = [];
@@ -310,7 +320,7 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
     if (discretionaryTotal > monthExpense * 0.4 && monthExpense > 0) {
       risks.push({
         title: 'High Discretionary Spending',
-        desc: `Discretionary purchases account for ${( (discretionaryTotal / monthExpense) * 100 ).toFixed(0)}% of total monthly outflows.`,
+        desc: `Discretionary purchases account for ${((discretionaryTotal / monthExpense) * 100).toFixed(0)}% of total monthly outflows.`,
         severity: 'medium',
       });
     }
@@ -322,14 +332,9 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
         `Cap discretionary spending (Dining & Shopping) to save up to ${formatCurrency(discretionaryTotal * 0.25, prefCurrency)} this month.`
       );
     }
-    if (recurringMicroSpends.length > 0) {
-      recommendations.push(
-        `Identified ${recurringMicroSpends.length} frequent micro-transactions. Consolidating small daily spends could save ~${formatCurrency(1500, prefCurrency)}/month.`
-      );
-    }
     if (totalBal > 25000 && monthIncome > monthExpense) {
       recommendations.push(
-        `Healthy surplus detected: Allocate at least ${formatCurrency((monthIncome - monthExpense) * 0.4, prefCurrency)} to an emergency fund or liquid investment goal.`
+        `Healthy surplus detected: Allocate at least ${formatCurrency((monthIncome - monthExpense) * 0.4, prefCurrency)} to emergency reserve.`
       );
     } else {
       recommendations.push(
@@ -351,8 +356,8 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
       },
       {
         step: 3,
-        title: 'Surplus Reinvestment',
-        target: `Automate 15% transfer on salary/income credit day into high-interest savings`,
+        title: 'Surplus Automation',
+        target: `Automate 15% transfer on income credit day into high-interest savings`,
       },
     ];
 
@@ -367,29 +372,42 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
       projectedMonthExpense,
       runwayDays,
       discretionaryTotal,
-      recurringMicroSpends,
+      topCategory,
+      healthScore,
       risks,
       recommendations,
       improvementPlan,
     };
   }, [accounts, analysisAccountId, transactions, currentMonth, prefCurrency, rates, currentDay, totalDaysInMonth]);
 
-  // Handle Ask AI Question
+  // Handle Ask AI Question (Strictly 1 query per user per day)
   const handleAskQuestion = async (queryText?: string) => {
-    const text = queryText || chatInput;
-    if (!text.trim()) return;
+    const text = (queryText || chatInput).trim();
+    if (!text) return;
 
-    if (!isPro && questionsLeft <= 0) {
+    // Strict quota check: If already used today, block completely to protect admin AI credits
+    if (questionsLeft <= 0 || hasReachedLimit) {
       setHasReachedLimit(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: 'Daily limit reached. Come back tomorrow! (Admin AI credits are protected. Your 1 free daily insight resets at midnight.)',
+          timestamp: 'Just now',
+        },
+      ]);
       return;
     }
 
-    const userMessage = { role: 'user' as const, text };
+    const userMessage = { role: 'user' as const, text, timestamp: 'Just now' };
     setMessages((prev) => [...prev, userMessage]);
     setChatInput('');
     setIsAnswering(true);
 
-    const userId = profile.firebaseUid || profile.id || 'guest_user';
+    // Consume local quota immediately so further calls are blocked
+    StorageService.consumeDailyAiQuota(userId);
+    setQuestionsLeft(0);
+    setHasReachedLimit(true);
 
     try {
       const res = await fetch('/api/ai/chat', {
@@ -398,41 +416,34 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
         body: JSON.stringify({
           userId,
           message: text,
-          isPro,
           preferredCurrency: prefCurrency,
-          accountsSummary: accounts.map((a) => ({ name: a.name, balance: a.balance, currency: a.currency })),
-          transactionsSummary: transactions.slice(0, 50).map((t) => ({
-            desc: t.description,
-            amount: t.amount,
-            type: t.type,
-            cat: t.category,
-            date: t.date,
-            currency: t.currency,
-          })),
+          financialContext: {
+            totalBalance: formatCurrency(smartAnalysis.totalBal, prefCurrency),
+            thisMonthIncome: formatCurrency(smartAnalysis.monthIncome, prefCurrency),
+            thisMonthExpense: formatCurrency(smartAnalysis.monthExpense, prefCurrency),
+            currency: prefCurrency,
+            accounts: accounts.map((a) => ({ name: a.name, balance: a.balance, currency: a.currency })),
+            topCategories: smartAnalysis.topCategory[0],
+          },
         }),
       });
 
       const data = await res.json();
 
       if (res.status === 429 || data.limitReached) {
-        setQuestionsLeft(0);
-        setHasReachedLimit(true);
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            text: 'You have used your free AI question for today. Upgrade to Premium to enjoy unlimited AI chat and advanced financial intelligence.',
+            text: 'Daily limit reached. Come back tomorrow!',
+            timestamp: 'Just now',
           },
         ]);
         return;
       }
 
       if (data.reply) {
-        setMessages((prev) => [...prev, { role: 'assistant', text: data.reply }]);
-        if (!isPro && typeof data.questionsRemaining === 'number') {
-          setQuestionsLeft(data.questionsRemaining);
-          if (data.questionsRemaining <= 0) setHasReachedLimit(true);
-        }
+        setMessages((prev) => [...prev, { role: 'assistant', text: data.reply, timestamp: 'Just now' }]);
         if (profile.firebaseUid) {
           await CloudFirestoreService.recordAiQuestionUsed(profile.firebaseUid);
         }
@@ -441,44 +452,20 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
       }
     } catch {
       // Deterministic calculation strictly from real ledger
-      let totalBal = accounts.reduce((sum, a) => sum + a.balance, 0);
-      let monthExpense = 0;
-      let monthIncome = 0;
-      const catMap: Record<string, number> = {};
-
-      transactions.forEach((tx) => {
-        if (tx.date.startsWith(currentMonth)) {
-          if (tx.type === 'expense') {
-            monthExpense += tx.amount;
-            catMap[tx.category] = (catMap[tx.category] || 0) + tx.amount;
-          } else if (tx.type === 'income') {
-            monthIncome += tx.amount;
-          }
-        }
-      });
-
-      const highestCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
       const qLower = text.toLowerCase();
       let answer = '';
 
       if (qLower.includes('kharcha') || qLower.includes('expense') || qLower.includes('spent')) {
-        answer = `Iss mahine aapka total kharcha ${formatCurrency(monthExpense, prefCurrency)} hua hai.`;
-        if (highestCat) {
-          answer += ` Sabse zyada kharcha ${highestCat[0]} category mein ${formatCurrency(highestCat[1], prefCurrency)} hua hai.`;
-        }
+        answer = `Iss mahine aapka total kharcha ${formatCurrency(smartAnalysis.monthExpense, prefCurrency)} hua hai. Sabse zyada kharcha ${smartAnalysis.topCategory[0]} category mein ${formatCurrency(smartAnalysis.topCategory[1] as number, prefCurrency)} hua hai.`;
       } else if (qLower.includes('balance') || qLower.includes('available')) {
-        answer = `Aapke sabhi active accounts ka total consolidated balance ${formatCurrency(totalBal, prefCurrency)} hai (${accounts.length} active accounts).`;
+        answer = `Aapke sabhi active accounts ka total consolidated balance ${formatCurrency(smartAnalysis.totalBal, prefCurrency)} hai (${accounts.length} active accounts).`;
       } else if (qLower.includes('income') || qLower.includes('salary') || qLower.includes('kamayi')) {
-        answer = `Iss mahine aapki total income ${formatCurrency(monthIncome, prefCurrency)} hai.`;
+        answer = `Iss mahine aapki total income ${formatCurrency(smartAnalysis.monthIncome, prefCurrency)} hai.`;
       } else {
-        answer = `Aapke ledger ke hisaab se: Total Balance: ${formatCurrency(totalBal, prefCurrency)}, Iss mahine ka kharcha: ${formatCurrency(monthExpense, prefCurrency)}, Income: ${formatCurrency(monthIncome, prefCurrency)}.`;
+        answer = `Aapke ledger ke hisaab se: Total Balance: ${formatCurrency(smartAnalysis.totalBal, prefCurrency)}, Iss mahine ka kharcha: ${formatCurrency(smartAnalysis.monthExpense, prefCurrency)}, Income: ${formatCurrency(smartAnalysis.monthIncome, prefCurrency)}, Health Score: ${smartAnalysis.healthScore}/100.`;
       }
 
-      setMessages((prev) => [...prev, { role: 'assistant', text: answer }]);
-      if (!isPro) {
-        setQuestionsLeft(0);
-        setHasReachedLimit(true);
-      }
+      setMessages((prev) => [...prev, { role: 'assistant', text: answer, timestamp: 'Just now' }]);
     } finally {
       setIsAnswering(false);
     }
@@ -486,65 +473,248 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
 
   return (
     <div className="max-w-md md:max-w-5xl mx-auto px-4 py-4 pb-28 space-y-4">
-      {/* 1. Header Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-[#0B1528] dark:bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-xs">
-            <Brain className="w-6 h-6 text-white" />
+      {/* 1. Modern Colorful Fintech Hero Card */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0B1528] via-[#122244] to-[#1E3A8A] text-white p-5 sm:p-6 shadow-xl border border-white/10 space-y-4">
+        {/* Ambient Glowing Background Orbs */}
+        <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-blue-500/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-12 -left-12 w-48 h-48 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg ring-2 ring-white/20">
+              <Brain className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+                <span>AI Manager</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/30 border border-blue-400/40 text-blue-200 uppercase tracking-wider">
+                  Fintech AI
+                </span>
+              </h2>
+              {/* SUBTITLE CHANGED AS MANDATED */}
+              <p className="text-xs text-blue-100/90 font-medium mt-0.5">
+                Smart Financial Guide & Daily AI Insights
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-base font-extrabold text-[#0B1528] dark:text-white tracking-tight">
-              AI Money Manager Intelligence
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Personalized Financial Intelligence Assistant · Real Ledger Synced
-            </p>
+
+          {/* TOP BADGE: Strictly showing 1/1 Left or 0/1 Left */}
+          <div className="self-start sm:self-auto">
+            {questionsLeft > 0 ? (
+              <div className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/25 via-teal-500/25 to-blue-500/25 border border-emerald-400/50 text-emerald-300 font-extrabold text-xs flex items-center gap-1.5 shadow-md backdrop-blur-md">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-300 animate-pulse" />
+                <span>Daily AI Insight: 1/1 Left Today</span>
+              </div>
+            ) : (
+              <div className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-rose-500/25 via-orange-500/25 to-amber-500/25 border border-rose-400/40 text-rose-200 font-extrabold text-xs flex items-center gap-1.5 shadow-md backdrop-blur-md">
+                <Clock className="w-3.5 h-3.5 text-rose-300" />
+                <span>Daily AI Insight: 0/1 Left Today</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* 2. Navigation Tabs: AI Chat, AI SMART ANALYSIS, Budget Planning */}
-        <div className="bg-[#EEF2F6] dark:bg-slate-800 p-1 rounded-2xl flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400 shadow-2xs gap-1">
+        {/* 2. Quick Insight Glassmorphic Fintech Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 relative z-10">
+          {/* Widget 1: Health Score */}
+          <div className="p-3.5 rounded-2xl bg-white/10 dark:bg-slate-900/40 backdrop-blur-md border border-white/15 shadow-sm hover:bg-white/15 transition-all">
+            <div className="flex items-center justify-between text-blue-200">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider">Health Score</span>
+              <Activity className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <div className="text-lg font-black text-white mt-1">
+              {smartAnalysis.healthScore}
+              <span className="text-xs font-normal text-blue-200">/100</span>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-300 block truncate mt-0.5">
+              {smartAnalysis.healthScore >= 75 ? 'Strong Buffer' : smartAnalysis.healthScore >= 50 ? 'Moderate' : 'Attention Needed'}
+            </span>
+          </div>
+
+          {/* Widget 2: Daily Burn */}
+          <div className="p-3.5 rounded-2xl bg-white/10 dark:bg-slate-900/40 backdrop-blur-md border border-white/15 shadow-sm hover:bg-white/15 transition-all">
+            <div className="flex items-center justify-between text-rose-200">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider">Daily Burn</span>
+              <Flame className="w-3.5 h-3.5 text-rose-400" />
+            </div>
+            <div className="text-lg font-black text-white mt-1 truncate">
+              {formatCurrency(smartAnalysis.dailyBurn, prefCurrency)}
+            </div>
+            <span className="text-[10px] text-blue-200 block truncate mt-0.5">Per-day spending</span>
+          </div>
+
+          {/* Widget 3: Cash Runway */}
+          <div className="p-3.5 rounded-2xl bg-white/10 dark:bg-slate-900/40 backdrop-blur-md border border-white/15 shadow-sm hover:bg-white/15 transition-all">
+            <div className="flex items-center justify-between text-indigo-200">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider">Runway</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-300" />
+            </div>
+            <div className="text-lg font-black text-white mt-1">
+              ~{smartAnalysis.runwayDays > 365 ? '365+' : smartAnalysis.runwayDays}d
+            </div>
+            <span className="text-[10px] text-blue-200 block truncate mt-0.5">At current burn</span>
+          </div>
+
+          {/* Widget 4: Top Category Outflow */}
+          <div className="p-3.5 rounded-2xl bg-white/10 dark:bg-slate-900/40 backdrop-blur-md border border-white/15 shadow-sm hover:bg-white/15 transition-all">
+            <div className="flex items-center justify-between text-amber-200">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider">Top Outflow</span>
+              <PieIcon className="w-3.5 h-3.5 text-amber-400" />
+            </div>
+            <div className="text-sm font-black text-white mt-1 truncate">
+              {smartAnalysis.topCategory[0]}
+            </div>
+            <span className="text-[10px] text-amber-300 font-bold block truncate mt-0.5">
+              {formatCurrency(smartAnalysis.topCategory[1] as number, prefCurrency)}
+            </span>
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="bg-black/30 backdrop-blur-md p-1 rounded-2xl flex items-center justify-between text-xs font-bold text-slate-300 border border-white/10 gap-1 relative z-10">
           <button
             type="button"
             onClick={() => setActiveTab('chat')}
-            className={`flex-1 py-2 px-2 text-center rounded-xl transition cursor-pointer ${
+            className={`flex-1 py-2 px-3 text-center rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'chat'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold'
-                : 'hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'bg-white text-slate-900 shadow-md font-black'
+                : 'hover:text-white hover:bg-white/5'
             }`}
           >
-            AI Chat
+            <Brain className="w-3.5 h-3.5" />
+            <span>AI Chat</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('smart_analysis')}
-            className={`flex-1 py-2 px-2 text-center rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 px-3 text-center rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'smart_analysis'
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs font-bold'
-                : 'hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'bg-white text-blue-900 shadow-md font-black'
+                : 'hover:text-white hover:bg-white/5'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-            <span className="truncate">AI SMART ANALYSIS</span>
+            <span>AI SMART ANALYSIS</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('budget')}
-            className={`flex-1 py-2 px-2 text-center rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 px-3 text-center rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'budget'
-                ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs font-bold'
-                : 'hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'bg-white text-emerald-900 shadow-md font-black'
+                : 'hover:text-white hover:bg-white/5'
             }`}
           >
             <Target className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="truncate">Budget Planning</span>
+            <span>Budget Planning</span>
           </button>
         </div>
       </div>
 
-      {/* 3. TAB 1: AI SMART ANALYSIS (Replaced Smart Entry & OCR) */}
+      {/* 3. TAB 1: AI CHAT (Strictly 1 Query Per User Per Day) */}
+      {activeTab === 'chat' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
+          {/* Limit Reached Warning Card */}
+          {hasReachedLimit && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-orange-500/10 border border-amber-300 dark:border-amber-800/60 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 text-xs">
+                <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">
+                  Daily limit reached. Come back tomorrow!
+                </h4>
+                <p className="text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                  You have used your 1 free AI insight for today. Admin AI credits are completely protected. Your daily AI query resets tomorrow at midnight!
+                </p>
+                <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 pt-0.5">
+                  ✓ Real-time ledger balances, charts, and deep account analysis remain 100% accessible.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Suggestion Chips */}
+          <div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+              Recommended Financial Queries
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {[
+                'Is month kitna kharcha hua?',
+                'Audit my highest spending category',
+                'What is my total net balance across accounts?',
+                'How can I save more money this month?',
+              ].map((q, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  disabled={hasReachedLimit}
+                  onClick={() => handleAskQuestion(q)}
+                  className="py-1.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-semibold text-slate-700 dark:text-slate-200 transition cursor-pointer text-left disabled:opacity-40 disabled:cursor-not-allowed border border-slate-200/60 dark:border-slate-700/60"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Conversation Stream */}
+          <div className="space-y-3 pt-1 max-h-96 overflow-y-auto pr-1">
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                className={`p-4 rounded-2xl text-xs leading-relaxed space-y-1 shadow-2xs ${
+                  m.role === 'user'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold ml-8 rounded-br-none'
+                    : 'bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 font-medium mr-8 border border-slate-200/80 dark:border-slate-700 rounded-bl-none'
+                }`}
+              >
+                <div className="flex items-center justify-between text-[10px] opacity-75 pb-0.5">
+                  <span className="font-bold">{m.role === 'user' ? 'You' : 'AI Financial Guide'}</span>
+                  <span>{m.timestamp || 'Today'}</span>
+                </div>
+                <div className="text-xs whitespace-pre-wrap">{m.text}</div>
+              </div>
+            ))}
+            {isAnswering && (
+              <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 text-xs text-blue-700 dark:text-blue-300 font-medium flex items-center gap-2 animate-pulse mr-8">
+                <Brain className="w-4 h-4 animate-spin" />
+                <span>Analyzing your Cloud Firestore ledger records...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Chat Input Field with Strict Daily Enforcement */}
+          <div className="relative pt-2">
+            <input
+              type="text"
+              disabled={hasReachedLimit}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAskQuestion()}
+              placeholder={
+                hasReachedLimit
+                  ? 'Daily limit reached. Come back tomorrow!'
+                  : 'Ask about income, expenses, accounts, or savings advice...'
+              }
+              className="w-full pl-4 pr-12 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 dark:disabled:bg-slate-800/60 disabled:text-slate-400 disabled:cursor-not-allowed shadow-inner transition"
+            />
+            <button
+              type="button"
+              disabled={hasReachedLimit || !chatInput.trim() || isAnswering}
+              onClick={() => handleAskQuestion()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 mt-1 w-9 h-9 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-md hover:scale-105 active:scale-95"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. TAB 2: AI SMART ANALYSIS */}
       {activeTab === 'smart_analysis' && (
         <div className="space-y-4">
           {/* Account Selector for Deep Analysis */}
@@ -595,7 +765,7 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
             </div>
           </div>
 
-          {/* Core Diagnostic Metrics Grid */}
+          {/* Diagnostic Metrics Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs">
               <span className="text-[10px] font-bold text-slate-400 block uppercase">Liquid Balance</span>
@@ -684,7 +854,7 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
             </div>
           </div>
 
-          {/* Actionable Monthly Financial Improvement Plan */}
+          {/* Actionable Monthly Financial Improvement Roadmap */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
             <div className="flex items-center gap-2">
               <Flame className="w-4 h-4 text-indigo-500" />
@@ -715,7 +885,7 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
         </div>
       )}
 
-      {/* 4. TAB 2: BUDGET PLANNING (Completely Functional CRUD, Alerts & Tracking) */}
+      {/* 5. TAB 3: BUDGET PLANNING */}
       {activeTab === 'budget' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -900,98 +1070,6 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* 5. TAB 3: AI CHAT (Direct Assistant) */}
-      {activeTab === 'chat' && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-          <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-            Ask in Hindi, Hinglish, or English using your real Cloud Firestore ledger:
-          </p>
-
-          {/* Example Question Chips */}
-          <div className="flex flex-wrap gap-2">
-            {[
-              'Is month kitna kharcha hua?',
-              'Total available balance',
-              'Which category has highest spending?',
-              'YJTR account status',
-            ].map((q, idx) => (
-              <button
-                key={idx}
-                type="button"
-                disabled={!isPro && questionsLeft <= 0}
-                onClick={() => handleAskQuestion(q)}
-                className="py-1.5 px-3 rounded-xl bg-[#EEF2F6] dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 transition cursor-pointer shadow-2xs text-left disabled:opacity-50"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-
-          {/* Conversation Stream */}
-          <div className="space-y-3 pt-2 max-h-80 overflow-y-auto">
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
-                  m.role === 'user'
-                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 font-bold ml-6 border border-blue-100 dark:border-blue-900/50'
-                    : 'bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 font-medium mr-6 border border-slate-200/80 dark:border-slate-700'
-                }`}
-              >
-                {m.text}
-              </div>
-            ))}
-            {isAnswering && (
-              <div className="p-3 text-xs text-slate-400 italic">
-                Computing deterministic response from ledger...
-              </div>
-            )}
-          </div>
-
-          {/* Quota limit callout */}
-          {!isPro && hasReachedLimit && (
-            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 space-y-2 text-center">
-              <p className="text-xs font-bold text-amber-900 dark:text-amber-200 leading-relaxed">
-                You have used your free AI question for today. Upgrade to Premium for unlimited queries.
-              </p>
-              <button
-                type="button"
-                onClick={onOpenUpgrade}
-                className="py-2 px-4 rounded-xl bg-[#0B1528] dark:bg-blue-600 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs hover:bg-[#111e38] transition cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Upgrade to Premium</span>
-              </button>
-            </div>
-          )}
-
-          {/* Chat Input Field */}
-          <div className="relative pt-2">
-            <input
-              type="text"
-              disabled={!isPro && hasReachedLimit}
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAskQuestion()}
-              placeholder={
-                !isPro && hasReachedLimit
-                  ? 'Daily free question used. Upgrade to Pro for unlimited.'
-                  : 'Ask anything about your income, expenses, accounts...'
-              }
-              className="w-full pl-4 pr-12 py-3 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs disabled:bg-slate-100 dark:disabled:bg-slate-800"
-            />
-            <button
-              type="button"
-              disabled={!isPro && hasReachedLimit}
-              onClick={() => handleAskQuestion()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 mt-1 w-8 h-8 rounded-xl bg-[#0B1528] dark:bg-blue-600 text-white flex items-center justify-center transition cursor-pointer disabled:opacity-40"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
         </div>
       )}
     </div>

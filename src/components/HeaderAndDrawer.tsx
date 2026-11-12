@@ -20,6 +20,7 @@ import {
   Monitor,
   ExternalLink,
   Globe,
+  CheckCircle2,
 } from 'lucide-react';
 import { UserProfile } from '../types/finance';
 import { formatCurrency } from '../services/currencyService';
@@ -116,9 +117,10 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                     <h3 className="font-extrabold text-sm text-[#0B1528] dark:text-white leading-tight truncate max-w-[180px]">
                       {displayName}
                     </h3>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                      {isPro ? 'Pro Member · Lifetime' : 'Free Plan · Standard'}
-                    </span>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Verified Member</span>
+                    </div>
                   </div>
                 </div>
 
@@ -215,10 +217,9 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                     <div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                         <span>AI Manager</span>
-                        {!isPro && <Lock className="w-3 h-3 text-amber-500" />}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {isPro ? 'Unlimited AI financial queries & Deep Smart Analysis' : 'Limited free usage · Full access in Pro'}
+                        Smart Financial Guide & Daily AI Insights
                       </div>
                     </div>
                   </div>
@@ -288,33 +289,14 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
               </div>
             </div>
 
-            {/* Bottom Section: Premium Card & Footer */}
-            <div className="pt-4 space-y-3">
-              <button
-                onClick={() => {
-                  onOpenUpgrade();
-                  setIsDrawerOpen(false);
-                }}
-                className="w-full p-4 rounded-2xl bg-[#0B1528] dark:bg-blue-600 text-white flex items-center justify-between text-left shadow-lg active:scale-[0.99] transition cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
-                    <Crown className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-white leading-snug">
-                      {isPro ? 'Pro Features Unlocked' : 'Upgrade to Premium'}
-                    </div>
-                    <div className="text-[11px] text-slate-300 dark:text-slate-100">
-                      {isPro ? 'All Pro tools unlocked for launch celebration' : `Plans from ${prefCurrency === 'INR' ? '₹49/mo' : '$0.99/mo'}`}
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              </button>
-
-              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 px-1">
-                <span>Al Money Manager</span>
+            {/* Bottom Section: Footer Info */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1 font-semibold">
+                <span>AI Money Manager</span>
+                <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">v6.1.4</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                <span>Fixfly Innovations</span>
                 <span>info@fixfly.in</span>
               </div>
             </div>
