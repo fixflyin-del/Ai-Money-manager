@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install Node Dependencies
@@ -59,12 +59,14 @@ jobs:
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses || true
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Grant Execute Permission to Gradlew
-        run: chmod +x android/gradlew
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
       - name: Build Release APK and AAB
         working-directory: android
-        run: ./gradlew assembleRelease bundleRelease --stacktrace
+        run: gradle assembleRelease bundleRelease --stacktrace
 
       - name: Verify APK and AAB Were Created
         run: |
