@@ -148,7 +148,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 type="button"
                 onClick={() => {
                   setFormType(t);
-                  const firstMatch = categories.find((c) => c.type === (t === 'income' ? 'income' : 'expense'));
+                  const targetType = t === 'income' ? 'income' : 'expense';
+                  const defaultMatch = categories.find((c) => c.type === targetType && c.isDefault);
+                  const firstMatch = defaultMatch || categories.find((c) => c.type === targetType);
                   if (firstMatch) setFormCategory(firstMatch.name);
                 }}
                 className={`flex-1 py-1.5 px-2 text-center rounded-lg transition cursor-pointer capitalize ${

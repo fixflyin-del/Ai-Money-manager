@@ -167,6 +167,7 @@ export interface UserProfile {
   dailyAiQuestionsRemaining?: number;
   dailyAiQuestionsUsed?: number;
   dailyAiLastDate?: string;
+  categoriesSeeded?: boolean;
   subscription: UserSubscription;
 }
 

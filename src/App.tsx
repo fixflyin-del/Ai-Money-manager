@@ -9,7 +9,7 @@ import {
   Transaction,
   UserProfile,
 } from './types/finance';
-import { StorageService, CategoryItem } from './services/storageService';
+import { StorageService, CategoryItem, DEFAULT_CATEGORIES } from './services/storageService';
 import { fetchLiveRates, getCachedRates, formatCurrency } from './services/currencyService';
 import { CalculationService } from './services/calculationService';
 import { AuthService, auth } from './services/firebase';
@@ -88,6 +88,7 @@ export default function App() {
 
   // Active Real-Time Listeners Unsubscribe Store
   const unsubsRef = useRef<(() => void)[]>([]);
+  const categoriesSeededRef = useRef<boolean>(false);
 
   // Apply Theme Helper
   const applyTheme = useCallback((isDark: boolean) => {
@@ -180,22 +181,59 @@ export default function App() {
               photoUrl: firebaseUser.photoURL || undefined,
               storageMode: 'cloud',
               hasSelectedStorageMode: true,
+              categoriesSeeded: true,
             };
 
+            const seedCats = localCats.length > 0 ? localCats : [...DEFAULT_CATEGORIES];
             await CloudFirestoreService.migrateLocalDataToFirestore(
               uid,
               localAccs,
               localTxs,
-              localCats.length > 0 ? localCats : StorageService.getCategories(),
+              seedCats,
               newProf
             );
+            categoriesSeededRef.current = true;
+            setCategories(seedCats);
+            StorageService.saveCategories(seedCats);
           } else {
             // Existing cloud profile: update locally and apply theme
-            if (cloudProf) {
-              setProfile(cloudProf);
-              StorageService.saveUserProfile(cloudProf);
-              applyTheme(Boolean(cloudProf.darkModeEnabled));
+            let workingProf = cloudProf;
+            if (workingProf) {
+              setProfile(workingProf);
+              StorageService.saveUserProfile(workingProf);
+              applyTheme(Boolean(workingProf.darkModeEnabled));
             }
+
+            // Ensure default categories are safely seeded once in Firestore so adding/editing 1 category never wipes defaults
+            if (!workingProf?.categoriesSeeded) {
+              if (cloudCats.length === 0) {
+                const localCats = StorageService.getCategories();
+                const seedCats = localCats.length > 0 ? localCats : [...DEFAULT_CATEGORIES];
+                await CloudFirestoreService.seedCategoriesBatch(uid, seedCats);
+                setCategories(seedCats);
+                StorageService.saveCategories(seedCats);
+              } else {
+                const hasAnyDefault = cloudCats.some((c) => DEFAULT_CATEGORIES.some((d) => d.id === c.id));
+                if (!hasAnyDefault) {
+                  const existingIds = new Set(cloudCats.map((c) => c.id));
+                  const missingDefaults = DEFAULT_CATEGORIES.filter((d) => !existingIds.has(d.id));
+                  if (missingDefaults.length > 0) {
+                    await CloudFirestoreService.seedCategoriesBatch(uid, missingDefaults);
+                    const mergedCats = [...missingDefaults, ...cloudCats];
+                    setCategories(mergedCats);
+                    StorageService.saveCategories(mergedCats);
+                  }
+                }
+              }
+
+              if (workingProf) {
+                const markedProf: UserProfile = { ...workingProf, categoriesSeeded: true };
+                await CloudFirestoreService.saveUserProfile(markedProf);
+                setProfile(markedProf);
+                StorageService.saveUserProfile(markedProf);
+              }
+            }
+            categoriesSeededRef.current = true;
           }
 
           // B. Attach Real-Time Firestore Listeners for cross-device synchronization
@@ -233,7 +271,7 @@ export default function App() {
           unsubsRef.current.push(unsubTx);
 
           const unsubCats = CloudFirestoreService.subscribeToCategories(uid, (cats) => {
-            if (cats && cats.length > 0) {
+            if (cats && (cats.length > 0 || categoriesSeededRef.current)) {
               setCategories(cats);
               StorageService.saveCategories(cats);
             }
@@ -476,24 +514,89 @@ export default function App() {
 
   const handleAddCategory = useCallback(async (cat: any): Promise<boolean> => {
     const currentUid = auth.currentUser?.uid || profile.firebaseUid;
+    const prevCats = StorageService.getCategories();
     const created = StorageService.addCategory(cat);
     const updated = StorageService.getCategories();
     setCategories(updated);
 
     if (currentUid && currentUid !== 'guest') {
       await CloudFirestoreService.saveCategory(currentUid, created);
+      if (created.isDefault) {
+        for (const c of updated) {
+          const prev = prevCats.find((p) => p.id === c.id);
+          if (c.id !== created.id && prev && Boolean(prev.isDefault) !== Boolean(c.isDefault)) {
+            await CloudFirestoreService.saveCategory(currentUid, c);
+          }
+        }
+      }
+    }
+    return true;
+  }, [profile.firebaseUid]);
+
+  const handleUpdateCategory = useCallback(async (updatedCat: CategoryItem): Promise<boolean> => {
+    const currentUid = auth.currentUser?.uid || profile.firebaseUid;
+    const prevCats = StorageService.getCategories();
+    const oldCat = prevCats.find((c) => c.id === updatedCat.id);
+    const prevTxs = StorageService.getTransactions();
+
+    StorageService.updateCategory(updatedCat);
+    const updatedCats = StorageService.getCategories();
+    const updatedTxs = StorageService.getTransactions();
+
+    setCategories(updatedCats);
+    if (oldCat && oldCat.name !== updatedCat.name.trim()) {
+      setTransactions(updatedTxs);
+    }
+
+    if (currentUid && currentUid !== 'guest') {
+      const savedCat = updatedCats.find((c) => c.id === updatedCat.id) || updatedCat;
+      await CloudFirestoreService.saveCategory(currentUid, savedCat);
+
+      // Sync any other categories whose isDefault flag was cleared
+      for (const c of updatedCats) {
+        const prev = prevCats.find((p) => p.id === c.id);
+        if (c.id !== savedCat.id && prev && Boolean(prev.isDefault) !== Boolean(c.isDefault)) {
+          await CloudFirestoreService.saveCategory(currentUid, c);
+        }
+      }
+
+      // Sync renamed category on affected transactions in Firestore
+      if (oldCat && oldCat.name !== savedCat.name) {
+        const changedTxs = updatedTxs.filter((tx) => {
+          const oldTx = prevTxs.find((p) => p.id === tx.id);
+          return oldTx && oldTx.category !== tx.category;
+        });
+        if (changedTxs.length > 0) {
+          await CloudFirestoreService.updateTransactionsBatch(currentUid, changedTxs);
+        }
+      }
     }
     return true;
   }, [profile.firebaseUid]);
 
   const handleDeleteCategory = useCallback(async (id: string): Promise<boolean> => {
     const currentUid = auth.currentUser?.uid || profile.firebaseUid;
-    StorageService.deleteCategory(id);
+    const prevTxs = StorageService.getTransactions();
+    const result = StorageService.deleteCategory(id, 'General');
     const updatedCats = StorageService.getCategories();
+    const updatedTxs = StorageService.getTransactions();
+
     setCategories(updatedCats);
+    if (result.reassignedCount > 0) {
+      setTransactions(updatedTxs);
+    }
 
     if (currentUid && currentUid !== 'guest') {
       await CloudFirestoreService.deleteCategory(currentUid, id);
+      if (result.reassignedCount > 0) {
+        const changedTxs = updatedTxs.filter((tx) => {
+          const oldTx = prevTxs.find((p) => p.id === tx.id);
+          return oldTx && oldTx.category !== tx.category;
+        });
+        if (changedTxs.length > 0) {
+          await CloudFirestoreService.updateTransactionsBatch(currentUid, changedTxs);
+        }
+      }
     }
     return true;
   }, [profile.firebaseUid]);
@@ -761,6 +864,7 @@ export default function App() {
               onToggleArchive={handleToggleArchive}
               onDeleteAccount={handleDeleteAccount}
               onAddCategory={handleAddCategory}
+              onUpdateCategory={handleUpdateCategory}
               onDeleteCategory={handleDeleteCategory}
               initialOpenAddAccount={manageInitialAddAccount}
             />

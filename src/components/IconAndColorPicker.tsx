@@ -126,7 +126,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in">
       <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -147,8 +147,9 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -171,6 +172,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
           {['All', 'Banking', 'Living', 'Work', 'Leisure', 'Misc'].map((cat) => (
             <button
               key={cat}
+              type="button"
               onClick={() => setSelectedFilter(cat)}
               className={`px-2.5 py-1 rounded-lg transition whitespace-nowrap cursor-pointer ${
                 selectedFilter === cat
@@ -190,6 +192,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
             return (
               <button
                 key={item.name}
+                type="button"
                 onClick={() => {
                   onSelectIcon(item.name);
                   onClose();

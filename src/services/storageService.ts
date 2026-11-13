@@ -318,7 +318,12 @@ export class StorageService {
     try {
       const key = this.getKey('aimoney_categories');
       const raw = localStorage.getItem(key);
-      if (raw) return JSON.parse(raw);
+      if (raw !== null) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((c) => c && typeof c.id === 'string' && typeof c.name === 'string');
+        }
+      }
     } catch {
       // fallback
     }
@@ -333,11 +338,16 @@ export class StorageService {
   }
 
   static addCategory(cat: Omit<CategoryItem, 'id'>): CategoryItem {
-    const list = this.getCategories();
+    let list = this.getCategories();
     const newCat: CategoryItem = {
       ...cat,
-      id: `cat_${Date.now()}`,
+      name: cat.name.trim(),
+      id: `cat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      isDefault: Boolean(cat.isDefault),
     };
+    if (newCat.isDefault) {
+      list = list.map((c) => (c.type === newCat.type ? { ...c, isDefault: false } : c));
+    }
     list.push(newCat);
     this.saveCategories(list);
     return newCat;
@@ -346,16 +356,28 @@ export class StorageService {
   static updateCategory(updatedCat: CategoryItem): void {
     const list = this.getCategories();
     const oldCat = list.find((c) => c.id === updatedCat.id);
-    const updatedList = list.map((c) => (c.id === updatedCat.id ? updatedCat : c));
+    const normalized: CategoryItem = {
+      ...updatedCat,
+      name: updatedCat.name.trim(),
+      isDefault: Boolean(updatedCat.isDefault),
+    };
+
+    const updatedList = list.map((c) => {
+      if (c.id === normalized.id) return normalized;
+      if (normalized.isDefault && c.type === normalized.type && c.isDefault) {
+        return { ...c, isDefault: false };
+      }
+      return c;
+    });
     this.saveCategories(updatedList);
 
-    if (oldCat && oldCat.name !== updatedCat.name) {
+    if (oldCat && oldCat.name !== normalized.name) {
       const transactions = this.getTransactions();
       let hasChanges = false;
       const updatedTxs = transactions.map((tx) => {
         if (tx.category === oldCat.name) {
           hasChanges = true;
-          return { ...tx, category: updatedCat.name };
+          return { ...tx, category: normalized.name };
         }
         return tx;
       });

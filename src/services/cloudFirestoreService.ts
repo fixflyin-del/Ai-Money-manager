@@ -79,6 +79,7 @@ export class CloudFirestoreService {
           isPinLocked: Boolean(data.isPinLocked),
           biometricsEnabled: Boolean(data.biometricsEnabled),
           autoLockMinutes: data.autoLockMinutes || 5,
+          categoriesSeeded: Boolean(data.categoriesSeeded),
           subscription: {
             isPro: Boolean(data.isPro),
             planName: data.planName || 'Free Plan',
@@ -125,6 +126,7 @@ export class CloudFirestoreService {
             isPinLocked: Boolean(data.isPinLocked),
             biometricsEnabled: Boolean(data.biometricsEnabled),
             autoLockMinutes: data.autoLockMinutes || 5,
+            categoriesSeeded: Boolean(data.categoriesSeeded),
             subscription: {
               isPro: Boolean(data.isPro),
               planName: data.planName || 'Free Plan',
@@ -222,6 +224,25 @@ export class CloudFirestoreService {
     );
   }
 
+  private static normalizeCategories(docs: any[]): CategoryItem[] {
+    const items = docs.map((d) => {
+      const data = d.data() || {};
+      return {
+        id: data.id || d.id,
+        name: String(data.name || 'Category').trim(),
+        type: data.type === 'income' ? 'income' : 'expense',
+        icon: data.icon || 'Tag',
+        color: data.color || '#3B82F6',
+        isDefault: Boolean(data.isDefault),
+      } as CategoryItem;
+    });
+    return items.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'expense' ? -1 : 1;
+      if (Boolean(a.isDefault) !== Boolean(b.isDefault)) return a.isDefault ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
   /**
    * Fetches all categories for a user
    */
@@ -230,7 +251,7 @@ export class CloudFirestoreService {
     try {
       const colRef = collection(db, 'users', uid, 'categories');
       const snap = await getDocs(colRef);
-      return snap.docs.map((d) => d.data() as CategoryItem);
+      return this.normalizeCategories(snap.docs);
     } catch (error) {
       console.warn('Failed to get cloud categories:', error);
       handleFirestoreError(error, OperationType.LIST, path);
@@ -250,7 +271,7 @@ export class CloudFirestoreService {
     return onSnapshot(
       collection(db, 'users', uid, 'categories'),
       (snap) => {
-        const categories = snap.docs.map((d) => d.data() as CategoryItem);
+        const categories = this.normalizeCategories(snap.docs);
         onData(categories);
       },
       (error) => {
@@ -311,6 +332,48 @@ export class CloudFirestoreService {
       await deleteDoc(doc(db, 'users', uid, 'categories', catId));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  }
+
+  /**
+   * Batch seeds multiple categories into Firestore
+   */
+  static async seedCategoriesBatch(uid: string, categories: CategoryItem[]): Promise<void> {
+    if (!uid || !categories || categories.length === 0) return;
+    const path = `users/${uid}/categories`;
+    try {
+      const batch = writeBatch(db);
+      for (const cat of categories) {
+        const catRef = doc(db, 'users', uid, 'categories', cat.id);
+        const serializedCat = serializeCategoryForFirestore(cat, uid);
+        batch.set(catRef, serializedCat, { merge: true });
+      }
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  }
+
+  /**
+   * Batch updates transactions in Firestore (used on category rename/deletion reassignment)
+   */
+  static async updateTransactionsBatch(uid: string, transactions: Transaction[]): Promise<void> {
+    if (!uid || !transactions || transactions.length === 0) return;
+    const path = `users/${uid}/transactions`;
+    try {
+      const chunkSize = 400;
+      for (let i = 0; i < transactions.length; i += chunkSize) {
+        const chunk = transactions.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        for (const tx of chunk) {
+          const txRef = doc(db, 'users', uid, 'transactions', tx.id);
+          const serializedTx = serializeTransactionForFirestore(tx, uid);
+          batch.set(txRef, serializedTx, { merge: true });
+        }
+        await batch.commit();
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
     }
   }
 
@@ -460,6 +523,7 @@ export class CloudFirestoreService {
     const batch = writeBatch(db);
     let accountsMigrated = 0;
     let transactionsMigrated = 0;
+    let categoriesMigrated = 0;
 
     // Migrate missing accounts
     for (const acc of localAccounts) {
@@ -487,10 +551,11 @@ export class CloudFirestoreService {
         const catRef = doc(db, 'users', uid, 'categories', cat.id);
         const serializedCat = serializeCategoryForFirestore(cat, uid);
         batch.set(catRef, serializedCat, { merge: true });
+        categoriesMigrated++;
       }
     }
 
-    if (accountsMigrated > 0 || transactionsMigrated > 0) {
+    if (accountsMigrated > 0 || transactionsMigrated > 0 || categoriesMigrated > 0) {
       try {
         await batch.commit();
       } catch (error) {

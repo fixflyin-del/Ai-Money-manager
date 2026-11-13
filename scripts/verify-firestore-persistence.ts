@@ -378,6 +378,77 @@ assert(restoredUserAAccounts.length === 2, 'User A restored 2 accounts with zero
 assert(restoredUserATransactions.length === 2, 'User A restored remaining 2 transactions without cross-user leakage');
 assert(restoredUserAAccounts.find(a => a.id === 'acc_yjtr_123')?.balance === 1000, 'User A YJTR balance remains ₹1,000');
 
+// =========================================================================
+// TEST 7: CATEGORY EDIT, DEFAULT PRESERVATION, RENAME SYNC & SAFE DELETE
+// =========================================================================
+console.log('\n📌 TEST 7: Category CRUD, Edit Persistence & Transaction Rename Sync...');
+StorageService.setActiveUser('qa_cat_test_user');
+const initialCats = StorageService.getCategories();
+assert(initialCats.length === 20, `Initial default categories count is 20 (Got ${initialCats.length})`);
+
+// Add a custom category
+const customCat = StorageService.addCategory({
+  name: 'Tea & Snacks',
+  type: 'expense',
+  icon: 'Coffee',
+  color: '#D97706',
+  isDefault: true,
+});
+let catsAfterAdd = StorageService.getCategories();
+assert(catsAfterAdd.length === 21, `Adding 1 category preserves all 20 defaults + 1 custom = 21 (Got ${catsAfterAdd.length})`);
+
+// Create a transaction using this category
+StorageService.addAccount({
+  name: 'Cash Wallet',
+  type: 'cash',
+  currency: 'INR',
+  openingPosition: 500,
+  balance: 500,
+  color: '#10B981',
+});
+const catAcc = StorageService.getAccounts()[0];
+StorageService.addTransaction({
+  type: 'expense',
+  amount: 50,
+  currency: 'INR',
+  category: 'Tea & Snacks',
+  description: 'Chai',
+  date: '2026-11-12',
+  accountId: catAcc.id,
+  paymentMode: 'Cash',
+  tags: ['expense'],
+});
+
+// Edit the category (rename + color + icon)
+StorageService.updateCategory({
+  ...customCat,
+  name: 'Coffee & Snacks',
+  color: '#2563EB',
+  icon: 'Utensils',
+  isDefault: true,
+});
+const catsAfterEdit = StorageService.getCategories();
+assert(catsAfterEdit.length === 21, `Editing a category does NOT delete any category (Got ${catsAfterEdit.length})`);
+const editedCat = catsAfterEdit.find(c => c.id === customCat.id);
+assert(editedCat?.name === 'Coffee & Snacks', 'Edited category name persisted');
+assert(editedCat?.color === '#2563EB', 'Edited category color persisted');
+assert(editedCat?.icon === 'Utensils', 'Edited category icon persisted');
+assert(editedCat?.isDefault === true, 'Edited category isDefault persisted');
+const serializedEditedCat = serializeCategoryForFirestore(editedCat!, 'qa_cat_test_user');
+assertNoUndefinedFields(serializedEditedCat, 'serializedEditedCat');
+assert(serializedEditedCat.isDefault === true, 'Firestore serializer preserves isDefault on Category');
+
+// Verify transaction category was renamed automatically
+const txsAfterCatRename = StorageService.getTransactions();
+assert(txsAfterCatRename[0].category === 'Coffee & Snacks', 'Transaction category updated on category rename');
+
+// Delete the custom category and confirm others stay intact and tx reassigns to General
+const delResult = StorageService.deleteCategory(customCat.id, 'General');
+assert(delResult.success && delResult.reassignedCount === 1, 'Delete category returns reassignedCount = 1');
+const catsAfterDel = StorageService.getCategories();
+assert(catsAfterDel.length === 20, `Deleting 1 category leaves all 20 other categories intact (Got ${catsAfterDel.length})`);
+assert(StorageService.getTransactions()[0].category === 'General', 'Deleted category transaction reassigned to General');
+
 console.log('\n======================================================');
 console.log(`🎉 TEST SUITE COMPLETE: ${passed} PASSED, ${failed} FAILED`);
 console.log('======================================================\n');

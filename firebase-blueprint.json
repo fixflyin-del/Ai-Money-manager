@@ -15,6 +15,7 @@
         "darkModeEnabled": { "type": "boolean" },
         "isPro": { "type": "boolean" },
         "planName": { "type": "string", "maxLength": 50 },
+        "categoriesSeeded": { "type": "boolean" },
         "updatedAt": { "type": "string", "maxLength": 50 },
         "createdAt": { "type": "string", "maxLength": 50 }
       },

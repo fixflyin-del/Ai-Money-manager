@@ -185,8 +185,10 @@ export function serializeCategoryForFirestore(
     name: String(cat.name).trim(),
     type: cat.type === 'income' ? 'income' : 'expense',
     color: cat.color || '#3B82F6',
-    icon: cat.icon || 'tag',
+    icon: cat.icon || 'Tag',
+    isDefault: Boolean(cat.isDefault),
     userId: uid,
+    updatedAt: new Date().toISOString(),
   };
 
   return stripUndefined(payload);
@@ -221,6 +223,7 @@ export function serializeUserProfileForFirestore(
     billingCurrency: profile.subscription?.billingCurrency || 'INR',
     amountPaid: Number(profile.subscription?.amountPaid) || 0,
     gateway: profile.subscription?.gateway || 'PayU',
+    categoriesSeeded: Boolean(profile.categoriesSeeded),
     updatedAt: new Date().toISOString(),
   };
 

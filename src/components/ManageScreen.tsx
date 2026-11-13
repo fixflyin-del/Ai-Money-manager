@@ -97,6 +97,9 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
   // Safe Category Deletion Dialog
   const [deletingCat, setDeletingCat] = useState<CategoryItem | null>(null);
   const [affectedTxCount, setAffectedTxCount] = useState<number>(0);
+  const [isSavingCategory, setIsSavingCategory] = useState<boolean>(false);
+  const [isDeletingCategory, setIsDeletingCategory] = useState<boolean>(false);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
 
   // Account Form Handlers
   const handleOpenCreateAccount = () => {
@@ -176,6 +179,7 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
     setCatIcon('Tag');
     setCatIsDefault(false);
     setEditingCategory(null);
+    setCategoryError(null);
     setIsAddCategoryOpen(true);
   };
 
@@ -186,52 +190,69 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
     setCatColor(cat.color);
     setCatIcon(cat.icon || 'Tag');
     setCatIsDefault(Boolean(cat.isDefault));
+    setCategoryError(null);
     setIsAddCategoryOpen(true);
   };
 
-  const handleCategoryFormSubmit = (e: React.FormEvent) => {
+  const handleCategoryFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!catName.trim()) return;
+    const trimmedName = catName.trim();
+    if (!trimmedName || isSavingCategory) return;
 
-    if (editingCategory) {
-      const updated: CategoryItem = {
-        ...editingCategory,
-        name: catName.trim(),
-        type: catType,
-        color: catColor,
-        icon: catIcon,
-        isDefault: catIsDefault,
-      };
-      if (onUpdateCategory) {
-        onUpdateCategory(updated);
+    setCategoryError(null);
+    setIsSavingCategory(true);
+    try {
+      if (editingCategory) {
+        const updated: CategoryItem = {
+          ...editingCategory,
+          name: trimmedName,
+          type: catType,
+          color: catColor,
+          icon: catIcon,
+          isDefault: catIsDefault,
+        };
+        if (onUpdateCategory) {
+          await onUpdateCategory(updated);
+        } else {
+          StorageService.updateCategory(updated);
+        }
       } else {
-        StorageService.updateCategory(updated);
+        await onAddCategory({
+          name: trimmedName,
+          type: catType,
+          color: catColor,
+          icon: catIcon,
+          isDefault: catIsDefault,
+        });
       }
-    } else {
-      onAddCategory({
-        name: catName.trim(),
-        type: catType,
-        color: catColor,
-        icon: catIcon,
-        isDefault: catIsDefault,
-      });
-    }
 
-    setIsAddCategoryOpen(false);
-    setEditingCategory(null);
+      setIsAddCategoryOpen(false);
+      setEditingCategory(null);
+    } catch (err: any) {
+      console.error('Failed to save category:', err);
+      setCategoryError(err?.message || 'Failed to save category. Please try again.');
+    } finally {
+      setIsSavingCategory(false);
+    }
   };
 
   const handlePromptDeleteCategory = (cat: CategoryItem) => {
-    const txs = StorageService.getTransactionsUsingCategory(cat.name);
-    setAffectedTxCount(txs.length);
+    const count = transactions.filter((tx) => tx.category === cat.name).length;
+    setAffectedTxCount(count);
     setDeletingCat(cat);
   };
 
-  const handleConfirmDeleteCategory = () => {
-    if (!deletingCat) return;
-    StorageService.deleteCategory(deletingCat.id, 'General');
-    onDeleteCategory(deletingCat.id);
-    setDeletingCat(null);
+  const handleConfirmDeleteCategory = async () => {
+    if (!deletingCat || isDeletingCategory) return;
+    setIsDeletingCategory(true);
+    try {
+      await onDeleteCategory(deletingCat.id);
+      setDeletingCat(null);
+    } catch (err) {
+      console.error('Failed to delete category:', err);
+    } finally {
+      setIsDeletingCategory(false);
+    }
   };
 
   // Filter Categories
@@ -248,6 +269,7 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
       {/* 1. Horizontally Scrollable Segmented Navigation Tabs (Requirement 7 - No Clipping) */}
       <div className="bg-[#EEF2F6] dark:bg-slate-800 p-1 rounded-2xl flex items-center gap-1 overflow-x-auto scrollbar-none shadow-2xs">
         <button
+          type="button"
           onClick={() => setActiveTab('accounts')}
           className={`flex-1 min-w-[120px] py-2.5 px-3 text-center rounded-xl transition cursor-pointer text-xs whitespace-nowrap ${
             activeTab === 'accounts'
@@ -259,6 +281,7 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('categories')}
           className={`flex-1 min-w-[130px] py-2.5 px-3 text-center rounded-xl transition cursor-pointer text-xs whitespace-nowrap ${
             activeTab === 'categories'
@@ -270,6 +293,7 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('export')}
           className={`flex-1 min-w-[150px] py-2.5 px-3 text-center rounded-xl transition cursor-pointer text-xs whitespace-nowrap ${
             activeTab === 'export'
@@ -450,6 +474,7 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
                 {(['all', 'expense', 'income'] as const).map((t) => (
                   <button
                     key={t}
+                    type="button"
                     onClick={() => setCategoryTypeFilter(t)}
                     className={`px-3 py-1.5 rounded-lg transition capitalize cursor-pointer ${
                       categoryTypeFilter === t
@@ -463,6 +488,7 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
               </div>
 
               <button
+                type="button"
                 onClick={handleOpenCreateCategory}
                 className="py-2 px-3.5 rounded-xl bg-[#0B1528] hover:bg-[#111e38] text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-md transition cursor-pointer"
               >
@@ -504,19 +530,29 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
                 </div>
 
                 {/* Edit & Delete Action Buttons */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
-                    onClick={() => handleOpenEditCategory(cat)}
-                    className="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEditCategory(cat);
+                    }}
+                    className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
                     title="Edit category"
+                    aria-label={`Edit ${cat.name}`}
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
 
                   <button
-                    onClick={() => handlePromptDeleteCategory(cat)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePromptDeleteCategory(cat);
+                    }}
+                    className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
                     title="Delete category"
+                    aria-label={`Delete ${cat.name}`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -750,12 +786,23 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
                 {editingCategory ? 'Edit Category' : 'Create Custom Category'}
               </h3>
               <button
-                onClick={() => setIsAddCategoryOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                type="button"
+                onClick={() => {
+                  setIsAddCategoryOpen(false);
+                  setEditingCategory(null);
+                  setCategoryError(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {categoryError && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 font-medium">
+                {categoryError}
+              </div>
+            )}
 
             {/* Category Live Preview Badge */}
             <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
@@ -843,16 +890,26 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsAddCategoryOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400"
+                  disabled={isSavingCategory}
+                  onClick={() => {
+                    setIsAddCategoryOpen(false);
+                    setEditingCategory(null);
+                    setCategoryError(null);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-[#0B1528] hover:bg-[#111e38] text-white font-bold text-xs shadow-md transition cursor-pointer"
+                  disabled={isSavingCategory}
+                  className="px-5 py-2.5 rounded-xl bg-[#0B1528] hover:bg-[#111e38] disabled:opacity-60 text-white font-bold text-xs shadow-md transition cursor-pointer"
                 >
-                  {editingCategory ? 'Update Category' : 'Save Category'}
+                  {isSavingCategory
+                    ? 'Saving...'
+                    : editingCategory
+                    ? 'Update Category'
+                    : 'Save Category'}
                 </button>
               </div>
             </form>
@@ -893,17 +950,19 @@ export const ManageScreen: React.FC<ManageScreenProps> = ({
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isDeletingCategory}
                 onClick={() => setDeletingCat(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400"
+                className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isDeletingCategory}
                 onClick={handleConfirmDeleteCategory}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white font-bold text-xs shadow-md transition cursor-pointer"
               >
-                Confirm Delete
+                {isDeletingCategory ? 'Deleting...' : 'Confirm Delete'}
               </button>
             </div>
           </div>
