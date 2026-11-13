@@ -37,7 +37,9 @@ public class MainActivity extends AppCompatActivity {
         webView = new WebView(this);
         setContentView(webView);
 
-        // Configure WebViewAssetLoader for modern ES module CORS compliance
+        // The entry HTML is served from assets/www/index.html.
+        // Vite emits root-relative /assets/... URLs, which must map to assets/www/assets/...
+        // Keep the asset loader for the entry HTML and intercept Vite bundles before it.
         assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain("appassets.androidplatform.net")
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -55,7 +57,6 @@ public class MainActivity extends AppCompatActivity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
-        // Expose Native JavaScript Bridge
         webView.addJavascriptInterface(bridge, "MoneyFlowNative");
 
         webView.setWebChromeClient(new WebChromeClient() {
@@ -72,23 +73,41 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
+                String path = uri.getPath();
 
-                // 1. First delegate to WebViewAssetLoader
+                // Vite bundle URLs such as /assets/index-xxxx.js are relative to the
+                // web root, but the files are packaged under Android assets/www/assets/.
+                // Intercept these BEFORE WebViewAssetLoader, because its /assets/ handler
+                // would otherwise look in assets/assets/ and return a 404 response.
+                if (path != null && path.startsWith("/assets/") && !path.startsWith("/assets/www/")) {
+                    try {
+                        String assetPath = "www" + path;
+                        InputStream stream = getAssets().open(assetPath);
+                        WebResourceResponse customResponse =
+                                new WebResourceResponse(getMimeType(path), "UTF-8", stream);
+                        addCorsHeaders(customResponse);
+                        return customResponse;
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to load bundled web asset: " + path, e);
+                        return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found",
+                                new HashMap<>(), null);
+                    }
+                }
+
                 WebResourceResponse response = assetLoader.shouldInterceptRequest(uri);
                 if (response != null) {
                     addCorsHeaders(response);
                     return response;
                 }
 
-                // 2. Fallback interceptor for root-relative asset requests (/assets/..., /manifest, etc.)
-                String path = uri.getPath();
-                if (path != null && (path.startsWith("/assets/") || path.endsWith(".js") || path.endsWith(".css")
-                        || path.endsWith(".svg") || path.endsWith(".png") || path.endsWith(".webmanifest"))) {
+                if (path != null && (path.endsWith(".js") || path.endsWith(".css")
+                        || path.endsWith(".svg") || path.endsWith(".png")
+                        || path.endsWith(".webmanifest") || path.endsWith(".json"))) {
                     try {
                         String assetPath = "www" + (path.startsWith("/") ? path : "/" + path);
                         InputStream stream = getAssets().open(assetPath);
-                        String mimeType = getMimeType(path);
-                        WebResourceResponse customResponse = new WebResourceResponse(mimeType, "UTF-8", stream);
+                        WebResourceResponse customResponse =
+                                new WebResourceResponse(getMimeType(path), "UTF-8", stream);
                         addCorsHeaders(customResponse);
                         return customResponse;
                     } catch (Exception e) {
@@ -102,7 +121,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                if (uri != null && uri.getHost() != null && !uri.getHost().equals("appassets.androidplatform.net")) {
+                if (uri != null && uri.getHost() != null
+                        && !uri.getHost().equals("appassets.androidplatform.net")) {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                         view.getContext().startActivity(intent);
@@ -126,8 +146,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         handleIntent(getIntent());
-
-        // Load the React 19 applet via HTTPS custom asset domain
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
     }
 
@@ -144,12 +162,14 @@ public class MainActivity extends AppCompatActivity {
 
     private String getMimeType(String path) {
         String extension = MimeTypeMap.getFileExtensionFromUrl(path);
-        if ("js".equalsIgnoreCase(extension)) return "text/javascript";
+        if ("js".equalsIgnoreCase(extension) || "mjs".equalsIgnoreCase(extension)) return "text/javascript";
         if ("css".equalsIgnoreCase(extension)) return "text/css";
         if ("svg".equalsIgnoreCase(extension)) return "image/svg+xml";
         if ("json".equalsIgnoreCase(extension) || "webmanifest".equalsIgnoreCase(extension)) return "application/json";
         if ("png".equalsIgnoreCase(extension)) return "image/png";
         if ("jpg".equalsIgnoreCase(extension) || "jpeg".equalsIgnoreCase(extension)) return "image/jpeg";
+        if ("woff".equalsIgnoreCase(extension)) return "font/woff";
+        if ("woff2".equalsIgnoreCase(extension)) return "font/woff2";
         return "text/plain";
     }
 
@@ -163,7 +183,6 @@ public class MainActivity extends AppCompatActivity {
     private void handleIntent(Intent intent) {
         if (intent != null && intent.getData() != null) {
             Uri data = intent.getData();
-            // Handle deep link scheme aimoney://oauth
             if ("aimoney".equalsIgnoreCase(data.getScheme()) && "oauth".equalsIgnoreCase(data.getHost())) {
                 String token = data.getQueryParameter("token");
                 if (token != null) {
