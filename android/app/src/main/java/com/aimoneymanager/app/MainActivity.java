@@ -17,6 +17,13 @@ import android.webkit.WebViewClient;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.webkit.WebViewAssetLoader;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.tasks.Task;
+import org.json.JSONObject;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,6 +31,7 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "FixFlyMainActivity";
+    private static final int RC_NATIVE_GOOGLE_SIGN_IN = 7401;
     private WebView webView;
     private WebViewAssetLoader assetLoader;
     private PlayBillingManager billingManager;
@@ -37,9 +45,6 @@ public class MainActivity extends AppCompatActivity {
         webView = new WebView(this);
         setContentView(webView);
 
-        // The entry HTML is served from assets/www/index.html.
-        // Vite emits root-relative /assets/... URLs, which must map to assets/www/assets/...
-        // Keep the asset loader for the entry HTML and intercept Vite bundles before it.
         assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain("appassets.androidplatform.net")
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -75,22 +80,15 @@ public class MainActivity extends AppCompatActivity {
                 Uri uri = request.getUrl();
                 String path = uri.getPath();
 
-                // Vite bundle URLs such as /assets/index-xxxx.js are relative to the
-                // web root, but the files are packaged under Android assets/www/assets/.
-                // Intercept these BEFORE WebViewAssetLoader, because its /assets/ handler
-                // would otherwise look in assets/assets/ and return a 404 response.
                 if (path != null && path.startsWith("/assets/") && !path.startsWith("/assets/www/")) {
                     try {
-                        String assetPath = "www" + path;
-                        InputStream stream = getAssets().open(assetPath);
-                        WebResourceResponse customResponse =
-                                new WebResourceResponse(getMimeType(path), "UTF-8", stream);
-                        addCorsHeaders(customResponse);
-                        return customResponse;
+                        InputStream stream = getAssets().open("www" + path);
+                        WebResourceResponse response = new WebResourceResponse(getMimeType(path), "UTF-8", stream);
+                        addCorsHeaders(response);
+                        return response;
                     } catch (Exception e) {
                         Log.e(TAG, "Failed to load bundled web asset: " + path, e);
-                        return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found",
-                                new HashMap<>(), null);
+                        return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", new HashMap<>(), null);
                     }
                 }
 
@@ -104,17 +102,14 @@ public class MainActivity extends AppCompatActivity {
                         || path.endsWith(".svg") || path.endsWith(".png")
                         || path.endsWith(".webmanifest") || path.endsWith(".json"))) {
                     try {
-                        String assetPath = "www" + (path.startsWith("/") ? path : "/" + path);
-                        InputStream stream = getAssets().open(assetPath);
-                        WebResourceResponse customResponse =
-                                new WebResourceResponse(getMimeType(path), "UTF-8", stream);
+                        InputStream stream = getAssets().open("www" + (path.startsWith("/") ? path : "/" + path));
+                        WebResourceResponse customResponse = new WebResourceResponse(getMimeType(path), "UTF-8", stream);
                         addCorsHeaders(customResponse);
                         return customResponse;
                     } catch (Exception e) {
                         Log.w(TAG, "Asset fallback lookup failed for: " + path, e);
                     }
                 }
-
                 return super.shouldInterceptRequest(view, request);
             }
 
@@ -124,8 +119,7 @@ public class MainActivity extends AppCompatActivity {
                 if (uri != null && uri.getHost() != null
                         && !uri.getHost().equals("appassets.androidplatform.net")) {
                     try {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-                        view.getContext().startActivity(intent);
+                        startActivity(new Intent(Intent.ACTION_VIEW, uri));
                         return true;
                     } catch (Exception e) {
                         Log.e(TAG, "Failed to launch external browser for " + uri, e);
@@ -149,11 +143,65 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
     }
 
+    public void startNativeGoogleSignIn(String serverClientId) {
+        runOnUiThread(() -> {
+            try {
+                if (serverClientId == null || serverClientId.trim().isEmpty()) {
+                    sendNativeGoogleResult(null, "Google Web OAuth Client ID is missing.");
+                    return;
+                }
+                GoogleSignInOptions options = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestEmail()
+                        .requestIdToken(serverClientId)
+                        .build();
+                GoogleSignInClient client = GoogleSignIn.getClient(this, options);
+                startActivityForResult(client.getSignInIntent(), RC_NATIVE_GOOGLE_SIGN_IN);
+            } catch (Exception e) {
+                Log.e(TAG, "Unable to start native Google Sign-In", e);
+                sendNativeGoogleResult(null, e.getMessage());
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == RC_NATIVE_GOOGLE_SIGN_IN) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            try {
+                GoogleSignInAccount account = task.getResult(ApiException.class);
+                if (account == null || account.getIdToken() == null) {
+                    sendNativeGoogleResult(null, "Google Sign-In returned no ID token. Check Android OAuth SHA-1 configuration.");
+                } else {
+                    sendNativeGoogleResult(account.getIdToken(), null);
+                }
+            } catch (ApiException e) {
+                Log.e(TAG, "Native Google Sign-In failed, status=" + e.getStatusCode(), e);
+                sendNativeGoogleResult(null, "Google Sign-In failed (code " + e.getStatusCode()
+                        + "). Verify the Android OAuth client, package name and SHA-1 certificate.");
+            } catch (Exception e) {
+                Log.e(TAG, "Native Google Sign-In result error", e);
+                sendNativeGoogleResult(null, e.getMessage());
+            }
+        }
+    }
+
+    private void sendNativeGoogleResult(String idToken, String error) {
+        try {
+            JSONObject result = new JSONObject();
+            if (idToken != null) result.put("idToken", idToken);
+            if (error != null) result.put("error", error);
+            String json = result.toString();
+            webView.post(() -> webView.evaluateJavascript(
+                    "if(window.onNativeGoogleSignIn){window.onNativeGoogleSignIn(" + JSONObject.quote(json) + ");}", null));
+        } catch (Exception e) {
+            Log.e(TAG, "Could not return native Google Sign-In result to WebView", e);
+        }
+    }
+
     private void addCorsHeaders(WebResourceResponse response) {
         Map<String, String> headers = response.getResponseHeaders();
-        if (headers == null) {
-            headers = new HashMap<>();
-        }
+        if (headers == null) headers = new HashMap<>();
         headers.put("Access-Control-Allow-Origin", "*");
         headers.put("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         headers.put("Access-Control-Allow-Headers", "*");
@@ -195,9 +243,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        if (billingManager != null) {
-            billingManager.destroy();
-        }
+        if (billingManager != null) billingManager.destroy();
         super.onDestroy();
     }
 }
