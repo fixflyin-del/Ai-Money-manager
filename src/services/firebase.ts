@@ -8,6 +8,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCredential,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -30,7 +31,6 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Support both Vercel/Vite environment variables and firebase-applet-config.json
 const resolvedFirebaseConfig = {
   projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || firebaseConfig.projectId,
   appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || firebaseConfig.appId,
@@ -42,7 +42,6 @@ const resolvedFirebaseConfig = {
   oAuthClientId: (import.meta.env.VITE_FIREBASE_OAUTH_CLIENT_ID as string) || firebaseConfig.oAuthClientId,
 };
 
-// Initialize Firebase
 export const app = initializeApp(resolvedFirebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId);
@@ -50,8 +49,63 @@ export const db = getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
+type NativeGoogleResult = { idToken?: string; error?: string };
+
+function signInWithNativeGoogle() {
+  return new Promise((resolve, reject) => {
+    const nativeBridge = (window as any).MoneyFlowNative;
+    if (!nativeBridge || typeof nativeBridge.startNativeGoogleSignIn !== 'function') {
+      reject(new Error('Native Google Sign-In is unavailable in this app build.'));
+      return;
+    }
+
+    let settled = false;
+    const finish = (callback: (value: any) => void, value: any) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      delete (window as any).onNativeGoogleSignIn;
+      callback(value);
+    };
+
+    const timeout = window.setTimeout(() => {
+      finish(reject, new Error('Google Sign-In timed out. Please try again.'));
+    }, 120000);
+
+    (window as any).onNativeGoogleSignIn = async (rawResult: string) => {
+      try {
+        const result = JSON.parse(rawResult) as NativeGoogleResult;
+        if (result.error) {
+          finish(reject, new Error(result.error));
+          return;
+        }
+        if (!result.idToken) {
+          finish(reject, new Error('Google did not return an ID token.'));
+          return;
+        }
+        const credential = GoogleAuthProvider.credential(result.idToken);
+        const userCredential = await signInWithCredential(auth, credential);
+        finish(resolve, userCredential);
+      } catch (error) {
+        finish(reject, error);
+      }
+    };
+
+    try {
+      nativeBridge.startNativeGoogleSignIn(resolvedFirebaseConfig.oAuthClientId);
+    } catch (error) {
+      finish(reject, error);
+    }
+  });
+}
+
 export const AuthService = {
-  signInWithGoogle: () => signInWithPopup(auth, googleProvider),
+  signInWithGoogle: () => {
+    const nativeBridge = (window as any).MoneyFlowNative;
+    return nativeBridge && typeof nativeBridge.startNativeGoogleSignIn === 'function'
+      ? signInWithNativeGoogle()
+      : signInWithPopup(auth, googleProvider);
+  },
   signInWithEmail: (email: string, pass: string) => signInWithEmailAndPassword(auth, email, pass),
   signUpWithEmail: (email: string, pass: string) => createUserWithEmailAndPassword(auth, email, pass),
   sendPasswordReset: (email: string) => sendPasswordResetEmail(auth, email),
@@ -80,7 +134,7 @@ export interface FirestoreErrorInfo {
     isAnonymous?: boolean | null;
     tenantId?: string | null;
     providerInfo?: {
-      providerId?: string | null;
+      providerId?: string;
       email?: string | null;
     }[];
   };
