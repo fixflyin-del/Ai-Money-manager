@@ -19,10 +19,9 @@ import {
 } from 'lucide-react';
 import {
   auth,
-  googleProvider,
+  AuthService,
 } from '../services/firebase';
 import {
-  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -88,7 +87,7 @@ export const WelcomeModal: React.FC<WelcomeModalProps> = ({
     setIsLoading(true);
     setErrorMessage('');
     try {
-      const res = await signInWithPopup(auth, googleProvider);
+      const res = await AuthService.signInWithGoogle();
       if (res.user) {
         StorageService.setActiveUser(res.user.uid);
         if (onAuthenticated) onAuthenticated(res.user);
