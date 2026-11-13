@@ -36,6 +36,15 @@ public class MoneyFlowBridge {
     }
 
     @JavascriptInterface
+    public void startNativeGoogleSignIn(String serverClientId) {
+        if (activity instanceof MainActivity) {
+            ((MainActivity) activity).startNativeGoogleSignIn(serverClientId);
+        } else {
+            Log.e(TAG, "Native Google Sign-In is only supported from MainActivity.");
+        }
+    }
+
+    @JavascriptInterface
     public String getCloudUrl() {
         return "https://aimoney.fixfly.in";
     }
