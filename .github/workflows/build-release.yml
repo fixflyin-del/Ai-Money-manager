@@ -118,30 +118,30 @@ jobs:
           mkdir -p release-output
           APK_PATH="$(find android/app/build/outputs/apk/release -name '*.apk' -print -quit)"
           AAB_PATH="$(find android/app/build/outputs/bundle/release -name '*.aab' -print -quit)"
-          cp "$APK_PATH" release-output/AI-Money-Manager-v6.1.4-signed.apk
-          cp "$AAB_PATH" release-output/AI-Money-Manager-v6.1.4-signed.aab
+          cp "$APK_PATH" release-output/AI-Money-Manager-v6.1.5-signed.apk
+          cp "$AAB_PATH" release-output/AI-Money-Manager-v6.1.5-signed.aab
 
       - name: Upload Verified APK and AAB
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Money-Manager-v6.1.4-SIGNED-Release-Builds
+          name: AI-Money-Manager-v6.1.5-SIGNED-Release-Builds
           path: release-output/
 
       - name: Create GitHub Release with Signed Downloads
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v6.1.4' }}
-          name: AI Money Manager Release v6.1.4 (Signed)
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v6.1.5' }}
+          name: AI Money Manager Release v6.1.5 (Signed)
           body: |
-            ## Fixfly AI Money Manager v6.1.4
+            ## Fixfly AI Money Manager v6.1.5
             - Package: `com.aimoneymanager.app`
-            - Version Name: `6.1.4`
-            - Version Code: `14`
+            - Version Name: `6.1.5`
+            - Version Code: `15`
             - Signed APK and AAB; signature verification required to pass.
             - 100% Free Launch Mode preserved.
           files: |
-            release-output/AI-Money-Manager-v6.1.4-signed.apk
-            release-output/AI-Money-Manager-v6.1.4-signed.aab
+            release-output/AI-Money-Manager-v6.1.5-signed.apk
+            release-output/AI-Money-Manager-v6.1.5-signed.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
