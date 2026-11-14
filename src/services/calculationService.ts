@@ -13,6 +13,29 @@ export interface DateFilterOptions {
 
 export class CalculationService {
   /**
+   * Sorts accounts deterministically by user-assigned sortOrder (ascending),
+   * falling back to original order / createdAt when sortOrder is unset.
+   */
+  static sortAccountsByOrder(accounts: Account[]): Account[] {
+    return accounts
+      .map((acc, index) => ({ acc, index }))
+      .sort((a, b) => {
+        const hasOrderA = typeof a.acc.sortOrder === 'number' && isFinite(a.acc.sortOrder);
+        const hasOrderB = typeof b.acc.sortOrder === 'number' && isFinite(b.acc.sortOrder);
+        if (hasOrderA && hasOrderB) {
+          if (a.acc.sortOrder! !== b.acc.sortOrder!) {
+            return a.acc.sortOrder! - b.acc.sortOrder!;
+          }
+          return a.index - b.index;
+        }
+        if (hasOrderA) return -1;
+        if (hasOrderB) return 1;
+        return a.index - b.index;
+      })
+      .map((entry) => entry.acc);
+  }
+
+  /**
    * Sorts transactions strictly Newest First.
    * Primary: transaction.date (YYYY-MM-DD descending)
    * Secondary: transaction.createdAt timestamp (descending)

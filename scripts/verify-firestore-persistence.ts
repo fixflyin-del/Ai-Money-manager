@@ -449,6 +449,74 @@ const catsAfterDel = StorageService.getCategories();
 assert(catsAfterDel.length === 20, `Deleting 1 category leaves all 20 other categories intact (Got ${catsAfterDel.length})`);
 assert(StorageService.getTransactions()[0].category === 'General', 'Deleted category transaction reassigned to General');
 
+// =========================================================================
+// TEST 8: ACCOUNT REORDERING PERSISTENCE & OPTIONAL DESCRIPTION
+// =========================================================================
+console.log('\n📌 TEST 8: Account Reordering (1st/2nd Place) & Optional Description...');
+StorageService.setActiveUser('qa_reorder_user');
+const firstCreated = StorageService.addAccount({
+  name: 'PRIMARY BANK',
+  type: 'bank',
+  currency: 'INR',
+  openingPosition: 1000,
+  balance: 1000,
+  color: '#2563EB',
+});
+const secondCreated = StorageService.addAccount({
+  name: 'CASH WALLET',
+  type: 'cash',
+  currency: 'INR',
+  openingPosition: 500,
+  balance: 500,
+  color: '#10B981',
+});
+const thirdCreated = StorageService.addAccount({
+  name: 'UPI VAULT',
+  type: 'upi',
+  currency: 'INR',
+  openingPosition: 250,
+  balance: 250,
+  color: '#8B5CF6',
+});
+
+const initialOrder = StorageService.getAccounts();
+assert(initialOrder[0].id === firstCreated.id, 'Initially 1st created account is at position #1');
+assert(initialOrder[2].id === thirdCreated.id, 'Initially 3rd created account is at position #3');
+
+// Move 3rd account ("UPI VAULT") to position #1 and 1st account to #2
+const reordered = StorageService.reorderAccounts([thirdCreated, firstCreated, secondCreated]);
+assert(reordered[0].id === thirdCreated.id && reordered[0].sortOrder === 0, 'Moved account has sortOrder 0 (#1 Default)');
+assert(reordered[1].id === firstCreated.id && reordered[1].sortOrder === 1, 'Second account has sortOrder 1 (#2)');
+assert(reordered[2].id === secondCreated.id && reordered[2].sortOrder === 2, 'Third account has sortOrder 2 (#3)');
+
+// Verify StorageService.getAccounts() restores the persisted order
+const reloadedOrder = StorageService.getAccounts();
+assert(reloadedOrder[0].id === thirdCreated.id, 'StorageService.getAccounts() restores #1 account after reload');
+assert(reloadedOrder[1].id === firstCreated.id, 'StorageService.getAccounts() restores #2 account after reload');
+
+// Verify Firestore serializer preserves sortOrder with zero undefined fields
+const serializedReordered = serializeAccountForFirestore(reloadedOrder[0], 'qa_reorder_user');
+assert(serializedReordered.sortOrder === 0, 'Firestore serializer preserves sortOrder === 0');
+assertNoUndefinedFields(serializedReordered, 'serializedReorderedAccount');
+
+// Verify transaction serialization works when description is omitted / empty (optional description)
+const optionalDescTx: Transaction = {
+  id: 'tx_opt_desc_01',
+  type: 'expense',
+  amount: 120,
+  currency: 'INR',
+  category: 'Groceries',
+  description: '',
+  date: '2026-11-13',
+  accountId: reloadedOrder[0].id,
+  paymentMode: 'UPI',
+  tags: ['expense', 'Groceries'],
+  createdAt: new Date().toISOString(),
+};
+const serializedOptDescTx = serializeTransactionForFirestore(optionalDescTx, 'qa_reorder_user');
+assert(serializedOptDescTx.description === 'Groceries', 'Empty optional description falls back cleanly to category in Firestore');
+assertNoUndefinedFields(serializedOptDescTx, 'serializedOptDescTx');
+
 console.log('\n======================================================');
 console.log(`🎉 TEST SUITE COMPLETE: ${passed} PASSED, ${failed} FAILED`);
 console.log('======================================================\n');

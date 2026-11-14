@@ -64,6 +64,7 @@ export interface Account {
   createdAt: string;
   updatedAt: string;
   archived?: boolean;
+  sortOrder?: number;
 }
 
 export type TransactionType = 'income' | 'expense' | 'transfer';

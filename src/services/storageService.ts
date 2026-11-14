@@ -160,7 +160,12 @@ export class StorageService {
     try {
       const key = this.getKey('aimoney_accounts');
       const raw = localStorage.getItem(key);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return CalculationService.sortAccountsByOrder(parsed);
+        }
+      }
     } catch {
       // fallback
     }
@@ -172,6 +177,17 @@ export class StorageService {
     localStorage.setItem(key, JSON.stringify(accounts));
   }
 
+  static reorderAccounts(orderedAccounts: Account[]): Account[] {
+    const now = new Date().toISOString();
+    const normalized = orderedAccounts.map((acc, index) => ({
+      ...acc,
+      sortOrder: index,
+      updatedAt: now,
+    }));
+    this.saveAccounts(normalized);
+    return normalized;
+  }
+
   static addAccount(
     accountData: Omit<Account, 'id' | 'updatedAt' | 'createdAt' | 'openingPosition' | 'adjustments' | 'netTransfers'> & {
       openingPosition?: number;
@@ -179,6 +195,10 @@ export class StorageService {
   ): Account {
     const accounts = this.getAccounts();
     const opening = accountData.openingPosition !== undefined ? Number(accountData.openingPosition) : Number(accountData.balance || 0);
+    const maxSortOrder = accounts.reduce(
+      (max, acc, idx) => Math.max(max, typeof acc.sortOrder === 'number' && isFinite(acc.sortOrder) ? acc.sortOrder : idx),
+      -1
+    );
 
     const newAccount: Account = {
       ...accountData,
@@ -187,6 +207,7 @@ export class StorageService {
       balance: opening,
       adjustments: 0,
       netTransfers: 0,
+      sortOrder: maxSortOrder + 1,
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString(),
     };
@@ -236,7 +257,9 @@ export class StorageService {
   }
 
   static deleteAccount(id: string): void {
-    const accounts = this.getAccounts().filter((a) => a.id !== id);
+    const accounts = this.getAccounts()
+      .filter((a) => a.id !== id)
+      .map((acc, index) => ({ ...acc, sortOrder: index }));
     this.saveAccounts(accounts);
   }
 

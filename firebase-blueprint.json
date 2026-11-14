@@ -38,6 +38,7 @@
         "color": { "type": "string", "maxLength": 30 },
         "icon": { "type": "string", "maxLength": 50 },
         "archived": { "type": "boolean" },
+        "sortOrder": { "type": "number" },
         "createdAt": { "type": "string", "maxLength": 50 }
       },
       "required": ["id", "userId", "name", "type", "currency", "balance"]

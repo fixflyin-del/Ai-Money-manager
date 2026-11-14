@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, AlertCircle, Check } from 'lucide-react';
 import { Account, CurrencyCode, PaymentMode, SUPPORTED_CURRENCIES, Transaction, TransactionType, UserProfile } from '../types/finance';
 import { CategoryItem } from '../services/storageService';
-import { convertCurrency, formatCurrency, getCachedRates } from '../services/currencyService';
+import { formatCurrency, getCachedRates } from '../services/currencyService';
 import { DynamicIcon } from './IconAndColorPicker';
 
 interface AddTransactionModalProps {
@@ -32,18 +32,55 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const prefCurrency = profile.preferredCurrency;
   const rates = getCachedRates().rates;
 
+  const getDefaultCategory = (type: TransactionType) => {
+    const targetType = type === 'income' ? 'income' : 'expense';
+    return (
+      categories.find((c) => c.type === targetType && c.isDefault)?.name ||
+      categories.find((c) => c.type === targetType)?.name ||
+      (targetType === 'income' ? 'Salary' : 'Food & Dining')
+    );
+  };
+
   const [formType, setFormType] = useState<TransactionType>('expense');
   const [formAmount, setFormAmount] = useState('');
-  const [formCurrency, setFormCurrency] = useState<CurrencyCode>(prefCurrency);
+  const [formCurrency, setFormCurrency] = useState<CurrencyCode>(accounts[0]?.currency || prefCurrency);
   const [formDescription, setFormDescription] = useState('');
-  const [formCategory, setFormCategory] = useState(categories[0]?.name || 'Food & Dining');
+  const [formCategory, setFormCategory] = useState(() => getDefaultCategory('expense'));
   const [formAccountId, setFormAccountId] = useState(accounts[0]?.id || '');
   const [formToAccountId, setFormToAccountId] = useState(accounts[1]?.id || accounts[0]?.id || '');
   const [formPaymentMode, setFormPaymentMode] = useState<PaymentMode>('UPI');
-  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+  const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [formNotes, setFormNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const wasOpenRef = useRef(false);
+  const amountInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Always open with a completely fresh empty form and 1st (#1) account selected by default
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      const firstAccount = accounts[0];
+      const secondAccount = accounts[1];
+      setFormType('expense');
+      setFormAmount('');
+      setFormDescription('');
+      setFormCategory(getDefaultCategory('expense'));
+      setFormAccountId(firstAccount?.id || '');
+      setFormToAccountId(secondAccount?.id || firstAccount?.id || '');
+      setFormCurrency(firstAccount?.currency || prefCurrency);
+      setFormPaymentMode('UPI');
+      setFormDate(new Date().toISOString().split('T')[0]);
+      setFormNotes('');
+      setErrorMessage(null);
+      setIsSaving(false);
+
+      window.setTimeout(() => {
+        amountInputRef.current?.focus();
+      }, 40);
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen, accounts, categories, prefCurrency]);
 
   if (!isOpen) return null;
 
@@ -92,17 +129,18 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
     setIsSaving(true);
     try {
+      const resolvedCategory = formType === 'transfer' ? 'Transfer' : formCategory;
       const payload: Omit<Transaction, 'id' | 'createdAt'> = {
         type: formType,
         amount: amt,
         currency: formCurrency,
-        description: formDescription.trim() || formCategory,
-        category: formType === 'transfer' ? 'Transfer' : formCategory,
+        description: formDescription.trim() || resolvedCategory,
+        category: resolvedCategory,
         accountId: formAccountId || accounts[0].id,
         paymentMode: formPaymentMode,
         date: formDate,
         notes: formNotes.trim(),
-        tags: [formType, formCategory],
+        tags: [formType, resolvedCategory],
         exchangeRateAtTransaction: rates[formCurrency] || 1,
         rateDate: formDate,
         rateSource: 'FixFly Reserve Engine',
@@ -173,6 +211,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             <div className="col-span-2">
               <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Amount *</label>
               <input
+                ref={amountInputRef}
                 type="number"
                 step="any"
                 required
@@ -200,13 +239,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </div>
           </div>
 
-          {/* Description */}
+          {/* Description (Optional) */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Description / Merchant *</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Description / Merchant (Optional)
+            </label>
             <input
               type="text"
-              required
-              placeholder="e.g. Starbucks, Groceries, Client Salary"
+              placeholder="e.g. Starbucks, Groceries, Client Salary (Optional)"
               value={formDescription}
               onChange={(e) => setFormDescription(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
@@ -375,7 +415,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 </div>
 
                 <div className="flex gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar">
-                  {accounts.map((acc) => {
+                  {accounts.map((acc, idx) => {
                     const isSelected = formAccountId === acc.id;
                     return (
                       <button
@@ -396,19 +436,26 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                             <Check className="w-2.5 h-2.5 stroke-[3]" />
                           </div>
                         )}
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 mb-1.5 pr-5">
                           <div
                             className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 shadow-2xs"
                             style={{ backgroundColor: acc.color || '#3B82F6', color: '#FFFFFF' }}
                           >
                             <DynamicIcon name={acc.icon || 'Landmark'} className="w-3.5 h-3.5 text-white" />
                           </div>
-                          <span className="text-xs font-bold truncate max-w-[85px] leading-tight">
+                          <span className="text-xs font-bold truncate leading-tight">
                             {acc.name}
                           </span>
                         </div>
-                        <div className="text-[11px] font-mono font-bold text-slate-900 dark:text-white truncate">
-                          {formatCurrency(acc.balance, acc.currency)}
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[11px] font-mono font-bold text-slate-900 dark:text-white truncate">
+                            {formatCurrency(acc.balance, acc.currency)}
+                          </span>
+                          {idx === 0 && (
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 shrink-0">
+                              #1
+                            </span>
+                          )}
                         </div>
                       </button>
                     );

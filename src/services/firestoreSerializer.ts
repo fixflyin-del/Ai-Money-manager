@@ -162,6 +162,9 @@ export function serializeAccountForFirestore(
   if (typeof acc.archived === 'boolean') {
     payload.archived = acc.archived;
   }
+  if (typeof acc.sortOrder === 'number' && isFinite(acc.sortOrder)) {
+    payload.sortOrder = acc.sortOrder;
+  }
 
   return stripUndefined(payload);
 }

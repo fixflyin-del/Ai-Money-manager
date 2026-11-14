@@ -263,7 +263,8 @@ export default function App() {
             StorageService.saveTransactions(sorted);
 
             setAccounts((prevAccs) => {
-              const recalculated = CalculationService.recalculateAllAccountBalances(prevAccs, sorted);
+              const sortedAccs = CalculationService.sortAccountsByOrder(prevAccs);
+              const recalculated = CalculationService.recalculateAllAccountBalances(sortedAccs, sorted);
               StorageService.saveAccounts(recalculated);
               return recalculated;
             });
@@ -392,6 +393,18 @@ export default function App() {
     }
 
     setAccounts(remaining);
+    return true;
+  }, [profile.firebaseUid]);
+
+  const handleReorderAccounts = useCallback(async (reorderedAccounts: Account[]): Promise<boolean> => {
+    const currentUid = auth.currentUser?.uid || profile.firebaseUid;
+    const normalized = StorageService.reorderAccounts(reorderedAccounts);
+    setAccounts(normalized);
+
+    if (currentUid && currentUid !== 'guest') {
+      await CloudFirestoreService.saveAccountsOrder(currentUid, normalized);
+    }
+
     return true;
   }, [profile.firebaseUid]);
 
@@ -849,6 +862,7 @@ export default function App() {
               onNavigateManage={() => setActiveTab('manage')}
               onUpdateTransaction={handleUpdateTransaction}
               onDeleteTransaction={handleDeleteTransaction}
+              onReorderAccounts={handleReorderAccounts}
             />
           )}
 

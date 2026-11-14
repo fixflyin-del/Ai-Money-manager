@@ -17,6 +17,7 @@ import {
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 import { Account, Budget, Transaction, UserProfile } from '../types/finance';
 import { CategoryItem } from './storageService';
+import { CalculationService } from './calculationService';
 import {
   serializeTransactionForFirestore,
   serializeAccountForFirestore,
@@ -156,7 +157,7 @@ export class CloudFirestoreService {
     try {
       const colRef = collection(db, 'users', uid, 'accounts');
       const snap = await getDocs(colRef);
-      return snap.docs.map((d) => d.data() as Account);
+      return CalculationService.sortAccountsByOrder(snap.docs.map((d) => d.data() as Account));
     } catch (error) {
       console.warn('Failed to get cloud accounts:', error);
       handleFirestoreError(error, OperationType.LIST, path);
@@ -176,7 +177,7 @@ export class CloudFirestoreService {
     return onSnapshot(
       collection(db, 'users', uid, 'accounts'),
       (snap) => {
-        const accounts = snap.docs.map((d) => d.data() as Account);
+        const accounts = CalculationService.sortAccountsByOrder(snap.docs.map((d) => d.data() as Account));
         onData(accounts);
       },
       (error) => {
@@ -290,6 +291,25 @@ export class CloudFirestoreService {
     try {
       const sanitized = serializeAccountForFirestore(account, uid);
       await setDoc(doc(db, 'users', uid, 'accounts', account.id), sanitized, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  }
+
+  /**
+   * Atomically persists account display order (sortOrder) across all accounts in Firestore
+   */
+  static async saveAccountsOrder(uid: string, orderedAccounts: Account[]): Promise<void> {
+    if (!uid || !orderedAccounts || orderedAccounts.length === 0) return;
+    const path = `users/${uid}/accounts`;
+    try {
+      const batch = writeBatch(db);
+      orderedAccounts.forEach((acc, idx) => {
+        const accRef = doc(db, 'users', uid, 'accounts', acc.id);
+        const sanitized = serializeAccountForFirestore({ ...acc, sortOrder: idx }, uid);
+        batch.set(accRef, sanitized, { merge: true });
+      });
+      await batch.commit();
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, path);
     }
