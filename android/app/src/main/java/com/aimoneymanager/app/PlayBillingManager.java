@@ -47,6 +47,7 @@ public class PlayBillingManager implements PurchasesUpdatedListener {
         billingClient = BillingClient.newBuilder(activity)
                 .setListener(this)
                 .enablePendingPurchases(pendingPurchasesParams)
+                .enableAutoServiceReconnection()
                 .build();
 
         startConnection();
@@ -91,8 +92,9 @@ public class PlayBillingManager implements PurchasesUpdatedListener {
                 .setProductList(productList)
                 .build();
 
-        billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsList) -> {
-            if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK && productDetailsList != null) {
+        billingClient.queryProductDetailsAsync(params, (billingResult, queryProductDetailsResult) -> {
+            if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK && queryProductDetailsResult != null) {
+                List<ProductDetails> productDetailsList = queryProductDetailsResult.getProductDetailsList();
                 for (ProductDetails details : productDetailsList) {
                     cachedProductDetails.put(details.getProductId(), details);
                     Log.d(TAG, "Loaded product details for: " + details.getProductId());
