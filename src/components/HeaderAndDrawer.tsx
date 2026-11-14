@@ -37,6 +37,8 @@ interface HeaderAndDrawerProps {
   isDrawerOpen: boolean;
   setIsDrawerOpen: (open: boolean) => void;
   onOpenUpgrade: () => void;
+  onSelectAllAccounts?: () => void;
+  isAllAccountsActive?: boolean;
 }
 
 export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
@@ -47,6 +49,8 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
   isDrawerOpen,
   setIsDrawerOpen,
   onOpenUpgrade,
+  onSelectAllAccounts,
+  isAllAccountsActive = false,
 }) => {
   const prefCurrency = profile.preferredCurrency;
   const isPro = EntitlementService.isPro(profile);
@@ -81,16 +85,28 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
           </span>
         </div>
 
-        {/* Right: Consolidated Total Balance Card & Profile Button */}
+        {/* Right: Clickable Consolidated Total Balance Card & Profile Button */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl px-3 py-1 text-right flex flex-col justify-center shadow-2xs">
-            <span className="text-[9px] font-bold tracking-wider text-slate-400 uppercase font-mono">
-              TOTAL BALANCE
+          <button
+            type="button"
+            onClick={onSelectAllAccounts}
+            title="View All Accounts Combined Data"
+            className={`rounded-xl px-3 py-1 text-right flex flex-col justify-center shadow-2xs border transition cursor-pointer active:scale-95 ${
+              isAllAccountsActive
+                ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/25'
+                : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-emerald-400'
+            }`}
+          >
+            <span className="text-[9px] font-bold tracking-wider text-slate-400 uppercase font-mono flex items-center justify-end gap-1">
+              <span>TOTAL BALANCE</span>
+              {isAllAccountsActive && (
+                <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-500 text-white font-extrabold">ALL</span>
+              )}
             </span>
             <span className="text-xs sm:text-sm font-extrabold font-mono-numbers text-emerald-500 dark:text-emerald-400">
               {formatCurrency(totalBalance, prefCurrency)}
             </span>
-          </div>
+          </button>
 
           <button
             onClick={() => onTabChange('profile')}

@@ -36,6 +36,8 @@ interface DesktopSidebarProps {
   onTabChange: (tab: NavTab) => void;
   onOpenUpgrade: () => void;
   onToggleDarkMode: () => void;
+  onSelectAllAccounts?: () => void;
+  isAllAccountsActive?: boolean;
 }
 
 export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
@@ -46,6 +48,8 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onTabChange,
   onOpenUpgrade,
   onToggleDarkMode,
+  onSelectAllAccounts,
+  isAllAccountsActive = false,
 }) => {
   const prefCurrency = profile.preferredCurrency;
   const isPro = EntitlementService.isPro(profile);
@@ -90,20 +94,29 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
           </div>
         </div>
 
-        {/* Consolidated Balance Card */}
-        <div className="p-3.5 rounded-2xl bg-[#F8FAFC] dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">
+        {/* Clickable Consolidated Balance Card */}
+        <button
+          type="button"
+          onClick={onSelectAllAccounts}
+          title="View All Accounts Combined Data"
+          className={`w-full text-left p-3.5 rounded-2xl border transition cursor-pointer ${
+            isAllAccountsActive
+              ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-500 ring-2 ring-emerald-500/20'
+              : 'bg-[#F8FAFC] dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 hover:border-emerald-400'
+          }`}
+        >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase font-mono">
               TOTAL BALANCE
             </span>
             <span className="text-[10px] font-semibold text-slate-400">
-              {accountCount} {accountCount === 1 ? 'account' : 'accounts'}
+              {isAllAccountsActive ? '✓ All Active' : `${accountCount} ${accountCount === 1 ? 'account' : 'accounts'}`}
             </span>
           </div>
           <div className="text-lg font-extrabold font-mono-numbers text-emerald-600 dark:text-emerald-400 mt-1">
             {formatCurrency(totalBalance, prefCurrency)}
           </div>
-        </div>
+        </button>
 
         {/* Navigation Links */}
         <nav className="space-y-1">

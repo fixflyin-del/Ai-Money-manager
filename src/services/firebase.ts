@@ -15,6 +15,7 @@ import {
   sendPasswordResetEmail,
   onAuthStateChanged,
   User,
+  UserCredential,
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -51,8 +52,8 @@ googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 type NativeGoogleResult = { idToken?: string; error?: string };
 
-function signInWithNativeGoogle() {
-  return new Promise((resolve, reject) => {
+function signInWithNativeGoogle(): Promise<UserCredential> {
+  return new Promise<UserCredential>((resolve, reject) => {
     const nativeBridge = (window as any).MoneyFlowNative;
     if (!nativeBridge || typeof nativeBridge.startNativeGoogleSignIn !== 'function') {
       reject(new Error('Native Google Sign-In is unavailable in this app build.'));

@@ -73,6 +73,10 @@ export default function App() {
     return window.location.pathname === '/admin' ? 'admin' : 'home';
   });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [homeSelectedAccountId, setHomeSelectedAccountId] = useState<string | 'all'>(() => {
+    const initialAccounts = StorageService.getAccounts();
+    return initialAccounts[0]?.id || 'all';
+  });
 
   // Modals
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
@@ -89,6 +93,7 @@ export default function App() {
   // Active Real-Time Listeners Unsubscribe Store
   const unsubsRef = useRef<(() => void)[]>([]);
   const categoriesSeededRef = useRef<boolean>(false);
+  const userPickedAllAccountsRef = useRef<boolean>(false);
 
   // Apply Theme Helper
   const applyTheme = useCallback((isDark: boolean) => {
@@ -150,6 +155,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribeAuth = AuthService.onAuthStateChanged(async (firebaseUser) => {
       cleanupSubscriptions();
+      userPickedAllAccountsRef.current = false;
 
       if (firebaseUser) {
         const uid = firebaseUser.uid;
@@ -326,6 +332,32 @@ export default function App() {
   const totalBalance = useMemo(() => {
     return CalculationService.calculateConsolidatedBalance(accounts, transactions, prefCurrency, rates);
   }, [accounts, transactions, prefCurrency, rates]);
+
+  // Keep Home selected account synced to #1 default account unless user explicitly clicked header Total Balance ("all")
+  useEffect(() => {
+    if (accounts.length === 0) {
+      setHomeSelectedAccountId('all');
+      return;
+    }
+    if (userPickedAllAccountsRef.current && homeSelectedAccountId === 'all') {
+      return;
+    }
+    if (!accounts.some((acc) => acc.id === homeSelectedAccountId)) {
+      setHomeSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, homeSelectedAccountId]);
+
+  const handleSelectHomeAccount = useCallback((accountId: string | 'all') => {
+    userPickedAllAccountsRef.current = accountId === 'all';
+    setHomeSelectedAccountId(accountId);
+  }, []);
+
+  const handleShowAllAccountsCombined = useCallback(() => {
+    userPickedAllAccountsRef.current = true;
+    setHomeSelectedAccountId('all');
+    setActiveTab('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   // Handlers for Account operations
   const handleAddAccount = useCallback(async (accData: any): Promise<boolean> => {
@@ -755,6 +787,8 @@ export default function App() {
           }}
           onOpenUpgrade={() => setIsPremiumModalOpen(true)}
           onToggleDarkMode={handleToggleDarkMode}
+          onSelectAllAccounts={handleShowAllAccountsCombined}
+          isAllAccountsActive={activeTab === 'home' && homeSelectedAccountId === 'all'}
         />
       </div>
 
@@ -773,6 +807,8 @@ export default function App() {
           isDrawerOpen={isDrawerOpen}
           setIsDrawerOpen={setIsDrawerOpen}
           onOpenUpgrade={() => setIsPremiumModalOpen(true)}
+          onSelectAllAccounts={handleShowAllAccountsCombined}
+          isAllAccountsActive={activeTab === 'home' && homeSelectedAccountId === 'all'}
         />
 
         {/* Desktop Top Header Bar */}
@@ -797,13 +833,27 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Quick Balance Pill */}
-            <div className="px-3.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-2">
+            {/* Quick Balance Pill (Click to view All Accounts Combined) */}
+            <button
+              type="button"
+              onClick={handleShowAllAccountsCombined}
+              title="Click to view All Accounts combined balance & transactions"
+              className={`px-3.5 py-1.5 rounded-xl border flex items-center gap-2 transition cursor-pointer ${
+                activeTab === 'home' && homeSelectedAccountId === 'all'
+                  ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-500'
+              }`}
+            >
               <span className="text-[10px] font-bold text-slate-400 uppercase">Total Balance</span>
               <span className="text-sm font-extrabold font-mono-numbers text-emerald-600 dark:text-emerald-400">
                 {formatCurrency(totalBalance, prefCurrency)}
               </span>
-            </div>
+              {activeTab === 'home' && homeSelectedAccountId === 'all' && (
+                <span className="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-600 text-white">
+                  All
+                </span>
+              )}
+            </button>
 
             {/* Website Portal button */}
             <button
@@ -854,6 +904,8 @@ export default function App() {
               accounts={accounts}
               transactions={transactions}
               categories={categories}
+              selectedAccountId={homeSelectedAccountId}
+              onSelectAccountId={handleSelectHomeAccount}
               onOpenAddModal={() => setIsAddEntryModalOpen(true)}
               onOpenCreateAccount={() => {
                 setActiveTab('manage');

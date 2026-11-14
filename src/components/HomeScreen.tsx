@@ -14,7 +14,6 @@ import {
   Pencil,
   Trash2,
   CheckCircle2,
-  Layers,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -28,11 +27,28 @@ import { DynamicIcon } from './IconAndColorPicker';
 import { CategoryItem } from '../services/storageService';
 import { EditTransactionModal } from './EditTransactionModal';
 
+function getContrastTextColor(hexColor?: string): string {
+  if (!hexColor || !hexColor.startsWith('#') || (hexColor.length !== 7 && hexColor.length !== 4)) {
+    return '#FFFFFF';
+  }
+  const full =
+    hexColor.length === 4
+      ? `#${hexColor[1]}${hexColor[1]}${hexColor[2]}${hexColor[2]}${hexColor[3]}${hexColor[3]}`
+      : hexColor;
+  const r = parseInt(full.slice(1, 3), 16);
+  const g = parseInt(full.slice(3, 5), 16);
+  const b = parseInt(full.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.68 ? '#0F172A' : '#FFFFFF';
+}
+
 interface HomeScreenProps {
   profile: UserProfile;
   accounts: Account[];
   transactions: Transaction[];
   categories: CategoryItem[];
+  selectedAccountId?: string | 'all';
+  onSelectAccountId?: (accountId: string | 'all') => void;
   onOpenAddModal: () => void;
   onOpenCreateAccount: () => void;
   onNavigateManage: () => void;
@@ -61,6 +77,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   accounts,
   transactions,
   categories,
+  selectedAccountId: controlledSelectedAccountId,
+  onSelectAccountId,
   onOpenAddModal,
   onOpenCreateAccount,
   onNavigateManage: _onNavigateManage,
@@ -71,24 +89,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const prefCurrency = profile.preferredCurrency;
   const rates = getCachedRates().rates;
 
-  // Requirement 7: By default, select the first active account. If none, 'all'
-  const [selectedAccountId, setSelectedAccountId] = useState<string | 'all'>(() => {
+  // By default, select the first active account. If none, 'all'
+  const [internalSelectedAccountId, setInternalSelectedAccountId] = useState<string | 'all'>(() => {
     return accounts.length > 0 ? accounts[0].id : 'all';
   });
 
-  // Ensure selectedAccountId stays valid when accounts change
-  useEffect(() => {
-    if (selectedAccountId !== 'all') {
-      const exists = accounts.some((a) => a.id === selectedAccountId);
-      if (!exists && accounts.length > 0) {
-        setSelectedAccountId(accounts[0].id);
-      } else if (accounts.length === 0) {
-        setSelectedAccountId('all');
-      }
-    } else if (accounts.length > 0 && selectedAccountId === 'all') {
-      // Keep 'all' if user explicitly picked 'all'
+  const selectedAccountId = controlledSelectedAccountId !== undefined ? controlledSelectedAccountId : internalSelectedAccountId;
+  const setSelectedAccountId = (id: string | 'all') => {
+    if (onSelectAccountId) {
+      onSelectAccountId(id);
+    } else {
+      setInternalSelectedAccountId(id);
     }
-  }, [accounts, selectedAccountId]);
+  };
+
+  // Ensure internal selectedAccountId stays valid when accounts change
+  useEffect(() => {
+    if (controlledSelectedAccountId !== undefined) return;
+    if (internalSelectedAccountId !== 'all') {
+      const exists = accounts.some((a) => a.id === internalSelectedAccountId);
+      if (!exists && accounts.length > 0) {
+        setInternalSelectedAccountId(accounts[0].id);
+      } else if (accounts.length === 0) {
+        setInternalSelectedAccountId('all');
+      }
+    } else if (accounts.length > 0) {
+      setInternalSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, internalSelectedAccountId, controlledSelectedAccountId]);
 
   // Requirement 5: Month and Year selection
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
@@ -222,24 +250,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-4 pb-28 md:pb-12 space-y-5">
-      {/* 1. Accounts Section Header & All Accounts Toggle */}
+      {/* 1. Accounts Section Header */}
       <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-extrabold text-[#0B1528] dark:text-white tracking-tight">
             Your Accounts ({accounts.length})
           </h2>
-          {accounts.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setSelectedAccountId(selectedAccountId === 'all' ? accounts[0]?.id || 'all' : 'all')}
-              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
-                selectedAccountId === 'all'
-                  ? 'bg-[#0B1528] text-white border-[#0B1528] dark:bg-blue-600 dark:border-blue-500'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              {selectedAccountId === 'all' ? '✓ All Accounts (Consolidated)' : 'View All Accounts'}
-            </button>
+          {selectedAccountId === 'all' && accounts.length > 0 && (
+            <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              All Combined
+            </span>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -264,7 +284,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </div>
 
-      {/* 2. Horizontally Scrollable Account Carousel (Requirement 6: Click to filter!) */}
+      {/* 2. Horizontally Scrollable Account Carousel (Only user-added accounts; 1st account is default) */}
       {accounts.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 text-center shadow-xs">
           <h3 className="text-base font-extrabold text-[#0B1528] dark:text-white">
@@ -284,48 +304,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       ) : (
         <div className="relative">
           <div className="flex items-stretch gap-3 overflow-x-auto pb-3 pt-1 scrollbar-none snap-x -mx-4 px-4 sm:mx-0 sm:px-0">
-            {/* "All Accounts" Card option in carousel */}
-            <div
-              onClick={() => setSelectedAccountId('all')}
-              className={`shrink-0 w-60 sm:w-64 snap-start p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden select-none ${
-                selectedAccountId === 'all'
-                  ? 'ring-3 ring-blue-500 shadow-lg scale-[1.01]'
-                  : 'opacity-85 hover:opacity-100 hover:shadow-sm'
-              }`}
-              style={{
-                backgroundColor: '#0B1528',
-                borderColor: selectedAccountId === 'all' ? '#3B82F6' : 'rgba(255, 255, 255, 0.15)',
-                color: '#FFFFFF',
-              }}
-            >
-              <div className="flex items-center justify-between mb-3 relative z-10">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white backdrop-blur-xs">
-                  Consolidated
-                </span>
-                <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white">
-                  <Layers className="w-4 h-4 text-white" />
-                </div>
-              </div>
-
-              <div className="text-xs sm:text-sm font-extrabold text-white tracking-wide uppercase truncate relative z-10">
-                All Accounts
-              </div>
-
-              <div className="text-lg sm:text-xl font-extrabold font-mono-numbers text-white mt-1 relative z-10">
-                {formatCurrency(
-                  CalculationService.calculateConsolidatedBalance(accounts, transactions, prefCurrency, rates),
-                  prefCurrency
-                )}
-              </div>
-
-              <div className="flex items-center justify-between text-[10px] text-white/70 pt-3 mt-2 border-t border-white/15 relative z-10 font-medium">
-                <span>{accounts.length} Accounts Active</span>
-                <span className="font-bold text-amber-300">
-                  {selectedAccountId === 'all' ? '● Active View' : 'Select'}
-                </span>
-              </div>
-            </div>
-
             {/* Individual Account Cards (Press & hold to reorder position) */}
             {accounts.map((acc, idx) => {
               const isSelected = selectedAccountId === acc.id;
@@ -463,10 +441,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       {/* 3. Account-Specific Active Filter Banner & Income / Expense Cards */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 px-1">
-          <span>
+        <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 px-1 flex-wrap">
+          <span className="flex items-center gap-2 flex-wrap">
             {selectedAccountId === 'all' ? (
-              'Showing: Consolidated All Accounts'
+              <>
+                <span>
+                  Showing: <strong className="text-emerald-600 dark:text-emerald-400">All Accounts Combined</strong> ({formatCurrency(displayedBalance, prefCurrency)})
+                </span>
+                {accounts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAccountId(accounts[0].id)}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition cursor-pointer"
+                  >
+                    Switch to #1 ({accounts[0].name})
+                  </button>
+                )}
+              </>
             ) : (
               <span>
                 Showing Account: <strong className="text-blue-600 dark:text-blue-400">{activeAccountObj?.name}</strong>{' '}
@@ -649,18 +640,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate flex items-center gap-1.5 flex-wrap">
                         <span className="truncate">{tx.description || tx.category}</span>
-                        {isTransfer && destAccount && (
-                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-normal">
-                            → {destAccount.name}
+                        {sourceAccount && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wide shrink-0 max-w-[115px] truncate shadow-2xs"
+                            style={{
+                              backgroundColor: sourceAccount.color || '#2563EB',
+                              color: getContrastTextColor(sourceAccount.color || '#2563EB'),
+                            }}
+                          >
+                            {sourceAccount.name}
                           </span>
+                        )}
+                        {isTransfer && destAccount && (
+                          <>
+                            <span className="text-[10px] text-slate-400 font-bold">→</span>
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wide shrink-0 max-w-[115px] truncate shadow-2xs"
+                              style={{
+                                backgroundColor: destAccount.color || '#10B981',
+                                color: getContrastTextColor(destAccount.color || '#10B981'),
+                              }}
+                            >
+                              {destAccount.name}
+                            </span>
+                          </>
                         )}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate flex items-center gap-1.5">
                         <span className="font-medium">{tx.date}</span>
                         {tx.time && <span>• {tx.time}</span>}
-                        <span>• {sourceAccount?.name || 'Account'}</span>
                         <span>• {tx.paymentMode}</span>
                       </div>
                     </div>
