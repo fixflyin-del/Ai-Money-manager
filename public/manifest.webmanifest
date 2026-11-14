@@ -1,0 +1,22 @@
+{
+  "id": "/",
+  "name": "AI Money Manager",
+  "short_name": "AI Money",
+  "description": "AI-powered personal finance and money management app by Fixfly Innovations Pvt. Ltd.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0B1528",
+  "theme_color": "#0B1528",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
