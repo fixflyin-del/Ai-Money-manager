@@ -6,8 +6,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.ConsoleMessage;
-import android.webkit.MimeTypeMap;
-import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -24,14 +22,18 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 import org.json.JSONObject;
-import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "FixFlyMainActivity";
     private static final int RC_NATIVE_GOOGLE_SIGN_IN = 7401;
+
+    // The Android app always opens the deployed website. Web UI updates can then
+    // reach the app without rebuilding the APK/AAB.
+    private static final String LIVE_WEB_APP_URL = "https://aimoneymanager.pro";
+    private static final String LIVE_WEB_APP_HOST = "aimoneymanager.pro";
+    private static final String LIVE_WEB_APP_WWW_HOST = "www.aimoneymanager.pro";
+
     private WebView webView;
     private WebViewAssetLoader assetLoader;
     private PlayBillingManager billingManager;
@@ -62,9 +64,11 @@ public class MainActivity extends AppCompatActivity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
+        // Keep the existing native bridge for Android-only integrations.
+        // It is intended to be used only by the trusted first-party web app.
         webView.addJavascriptInterface(bridge, "MoneyFlowNative");
 
-        webView.setWebChromeClient(new WebChromeClient() {
+        webView.setWebChromeClient(new android.webkit.WebChromeClient() {
             @Override
             public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
                 Log.d(TAG, "[WebView Console] " + consoleMessage.message() + " -- From line "
@@ -77,55 +81,35 @@ public class MainActivity extends AppCompatActivity {
             @Nullable
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                Uri uri = request.getUrl();
-                String path = uri.getPath();
-
-                if (path != null && path.startsWith("/assets/") && !path.startsWith("/assets/www/")) {
-                    try {
-                        InputStream stream = getAssets().open("www" + path);
-                        WebResourceResponse response = new WebResourceResponse(getMimeType(path), "UTF-8", stream);
-                        addCorsHeaders(response);
-                        return response;
-                    } catch (Exception e) {
-                        Log.e(TAG, "Failed to load bundled web asset: " + path, e);
-                        return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", new HashMap<>(), null);
-                    }
-                }
-
-                WebResourceResponse response = assetLoader.shouldInterceptRequest(uri);
-                if (response != null) {
-                    addCorsHeaders(response);
-                    return response;
-                }
-
-                if (path != null && (path.endsWith(".js") || path.endsWith(".css")
-                        || path.endsWith(".svg") || path.endsWith(".png")
-                        || path.endsWith(".webmanifest") || path.endsWith(".json"))) {
-                    try {
-                        InputStream stream = getAssets().open("www" + (path.startsWith("/") ? path : "/" + path));
-                        WebResourceResponse customResponse = new WebResourceResponse(getMimeType(path), "UTF-8", stream);
-                        addCorsHeaders(customResponse);
-                        return customResponse;
-                    } catch (Exception e) {
-                        Log.w(TAG, "Asset fallback lookup failed for: " + path, e);
-                    }
-                }
-                return super.shouldInterceptRequest(view, request);
+                // Only serve bundled resources for the dedicated app-assets origin.
+                // Never substitute old bundled files for live website assets.
+                return assetLoader.shouldInterceptRequest(request.getUrl());
             }
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                if (uri != null && uri.getHost() != null
-                        && !uri.getHost().equals("appassets.androidplatform.net")) {
-                    try {
-                        startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                        return true;
-                    } catch (Exception e) {
-                        Log.e(TAG, "Failed to launch external browser for " + uri, e);
-                    }
+                if (uri == null) return true;
+
+                String scheme = uri.getScheme();
+                String host = uri.getHost();
+
+                // Keep the trusted production website inside the app.
+                if ("https".equalsIgnoreCase(scheme)
+                        && host != null
+                        && (LIVE_WEB_APP_HOST.equalsIgnoreCase(host)
+                        || LIVE_WEB_APP_WWW_HOST.equalsIgnoreCase(host))) {
+                    return false;
                 }
-                return false;
+
+                // All other destinations (external websites, phone, email, etc.)
+                // are opened outside the app and cannot replace the trusted app page.
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                } catch (Exception e) {
+                    Log.e(TAG, "Unable to open external URL: " + uri, e);
+                }
+                return true;
             }
 
             @Override
@@ -140,7 +124,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         handleIntent(getIntent());
-        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html");
+        webView.loadUrl(LIVE_WEB_APP_URL);
     }
 
     public void startNativeGoogleSignIn(String serverClientId) {
@@ -199,28 +183,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void addCorsHeaders(WebResourceResponse response) {
-        Map<String, String> headers = response.getResponseHeaders();
-        if (headers == null) headers = new HashMap<>();
-        headers.put("Access-Control-Allow-Origin", "*");
-        headers.put("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        headers.put("Access-Control-Allow-Headers", "*");
-        response.setResponseHeaders(headers);
-    }
-
-    private String getMimeType(String path) {
-        String extension = MimeTypeMap.getFileExtensionFromUrl(path);
-        if ("js".equalsIgnoreCase(extension) || "mjs".equalsIgnoreCase(extension)) return "text/javascript";
-        if ("css".equalsIgnoreCase(extension)) return "text/css";
-        if ("svg".equalsIgnoreCase(extension)) return "image/svg+xml";
-        if ("json".equalsIgnoreCase(extension) || "webmanifest".equalsIgnoreCase(extension)) return "application/json";
-        if ("png".equalsIgnoreCase(extension)) return "image/png";
-        if ("jpg".equalsIgnoreCase(extension) || "jpeg".equalsIgnoreCase(extension)) return "image/jpeg";
-        if ("woff".equalsIgnoreCase(extension)) return "font/woff";
-        if ("woff2".equalsIgnoreCase(extension)) return "font/woff2";
-        return "text/plain";
-    }
-
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -234,8 +196,9 @@ public class MainActivity extends AppCompatActivity {
             if ("aimoney".equalsIgnoreCase(data.getScheme()) && "oauth".equalsIgnoreCase(data.getHost())) {
                 String token = data.getQueryParameter("token");
                 if (token != null) {
+                    String safeToken = JSONObject.quote(token);
                     webView.post(() -> webView.evaluateJavascript(
-                            "if(window.onAuthRedirect){window.onAuthRedirect('" + token + "');}", null));
+                            "if(window.onAuthRedirect){window.onAuthRedirect(" + safeToken + ");}", null));
                 }
             }
         }
