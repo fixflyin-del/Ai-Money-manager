@@ -83,6 +83,8 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
     },
   ]);
   const [isAnswering, setIsAnswering] = useState(false);
+  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
 
   // Sync quota status with server and localStorage on mount
   useEffect(() => {
@@ -373,12 +375,47 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
       runwayDays,
       discretionaryTotal,
       topCategory,
+      topCategories: Object.entries(catSpends)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, amount]) => ({ name, amount: Math.round(amount) })),
       healthScore,
       risks,
       recommendations,
       improvementPlan,
     };
   }, [accounts, analysisAccountId, transactions, currentMonth, prefCurrency, rates, currentDay, totalDaysInMonth]);
+
+  // Fetch Gemini-powered insights from the user's real ledger; local analysis remains available if AI is offline.
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoadingInsights(true);
+    fetch('/api/ai/insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        totalBalance: smartAnalysis.totalBal,
+        monthlyIncome: smartAnalysis.monthIncome,
+        monthlyExpense: smartAnalysis.monthExpense,
+        currency: prefCurrency,
+        topCategories: smartAnalysis.topCategories,
+      }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Insights service unavailable');
+        return response.json();
+      })
+      .then((data) => {
+        if (!cancelled && data && Array.isArray(data.tips)) setAiInsights(data);
+      })
+      .catch(() => {
+        if (!cancelled) setAiInsights(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingInsights(false);
+      });
+    return () => { cancelled = true; };
+  }, [smartAnalysis.totalBal, smartAnalysis.monthIncome, smartAnalysis.monthExpense, smartAnalysis.topCategories, prefCurrency]);
 
   // Handle Ask AI Question (Strictly 1 query per user per day)
   const handleAskQuestion = async (queryText?: string) => {
@@ -717,6 +754,35 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
       {/* 4. TAB 2: AI SMART ANALYSIS */}
       {activeTab === 'smart_analysis' && (
         <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-500" /> AI Financial Insights & Action Tips
+              </h3>
+              {isLoadingInsights && <span className="text-[11px] text-slate-400">Analyzing…</span>}
+            </div>
+            {aiInsights ? (
+              <>
+                <p className="text-xs text-slate-600 dark:text-slate-300">{aiInsights.summary}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(aiInsights.tips || []).map((tip: any, index: number) => (
+                    <div key={index} className="rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 p-3">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">{tip.title}</div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{tip.description}</p>
+                    </div>
+                  ))}
+                </div>
+                {(aiInsights.anomalies || []).length > 0 && (
+                  <div className="text-xs text-amber-700 dark:text-amber-300">
+                    {(aiInsights.anomalies || []).map((item: string, index: number) => <p key={index}>• {item}</p>)}
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-400">{aiInsights.fallback ? 'Ledger-based insights (AI temporarily unavailable)' : 'Powered by Gemini • Based on your recorded transactions'}</p>
+              </>
+            ) : (
+              <p className="text-xs text-slate-500">{isLoadingInsights ? 'Your spending and savings patterns are being reviewed.' : 'Live ledger metrics and local recommendations remain available. Gemini insights will appear when the API is configured.'}</p>
+            )}
+          </div>
           {/* Account Selector for Deep Analysis */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-2">
             <div className="flex items-center justify-between">
