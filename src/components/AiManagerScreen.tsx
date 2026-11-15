@@ -460,7 +460,7 @@ export const AiManagerScreen: React.FC<AiManagerScreenProps> = ({
             thisMonthExpense: formatCurrency(smartAnalysis.monthExpense, prefCurrency),
             currency: prefCurrency,
             accounts: accounts.map((a) => ({ name: a.name, balance: a.balance, currency: a.currency })),
-            topCategories: smartAnalysis.topCategory[0],
+            topCategories: smartAnalysis.topCategories,
           },
         }),
       });
