@@ -3,7 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CurrencyCode, FinancialHealthInsight, PaymentMode } from '../types/finance';
+import { auth } from './firebase';
+import { AndroidBridge } from './androidBridge';
+import {
+  AiChatResponse,
+  AiQuotaStatus,
+  BudgetPlanResponse,
+  CurrencyCode,
+  DailyAiInsightsResponse,
+  DeepSmartAnalysisResponse,
+  FinancialHealthInsight,
+  PaymentMode,
+} from '../types/finance';
 
 export interface ParsedReceiptData {
   merchant: string;
@@ -28,173 +39,267 @@ export interface ParsedVoiceExpense {
   rawText: string;
 }
 
+export class AiApiError extends Error {
+  status: number;
+  code: string;
+  limitReached: boolean;
+  quotaConsumed: boolean;
+  quotaStatus?: Partial<AiQuotaStatus>;
+
+  constructor(
+    message: string,
+    options: {
+      status?: number;
+      code?: string;
+      limitReached?: boolean;
+      quotaConsumed?: boolean;
+      quotaStatus?: Partial<AiQuotaStatus>;
+    } = {}
+  ) {
+    super(message);
+    this.status = options.status || 500;
+    this.code = options.code || 'AI_API_ERROR';
+    this.limitReached = Boolean(options.limitReached);
+    this.quotaConsumed = Boolean(options.quotaConsumed);
+    this.quotaStatus = options.quotaStatus;
+  }
+}
+
+export function getBrowserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
+  } catch {
+    return 'Asia/Kolkata';
+  }
+}
+
+async function getAuthenticatedHeaders(): Promise<Record<string, string>> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new AiApiError('Please sign in with Google or Email to access Cloud Gemini AI features.', {
+      status: 401,
+      code: 'AUTH_REQUIRED',
+      quotaConsumed: false,
+    });
+  }
+
+  const idToken = await user.getIdToken();
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${idToken}`,
+  };
+}
+
+async function parseErrorResponse(res: Response, fallbackMessage: string): Promise<AiApiError> {
+  const body = await res.json().catch(() => ({}));
+  return new AiApiError(body.message || body.error || fallbackMessage, {
+    status: res.status,
+    code: body.error || 'AI_API_ERROR',
+    limitReached: Boolean(res.status === 429 || body.limitReached || body.quotaExceeded),
+    quotaConsumed: Boolean(body.quotaConsumed),
+    quotaStatus:
+      typeof body.questionsRemaining === 'number'
+        ? {
+            isPro: Boolean(body.isPro),
+            questionsRemaining: body.questionsRemaining,
+            limit: body.limit ?? 1,
+            date: body.date,
+            timezone: body.timezone,
+            resetAt: body.resetAt,
+            dailyLimitReached: Boolean(body.dailyLimitReached ?? body.limitReached),
+          }
+        : undefined,
+  });
+}
+
 export class AiService {
   /**
-   * Scan receipt image via server-side Gemini 2.5 Flash
+   * Fetch persistent daily AI Chat quota status from Firestore via authenticated backend
    */
-  static async scanReceipt(fileBase64: string, mimeType: string, preferredCurrency: CurrencyCode): Promise<ParsedReceiptData> {
-    try {
-      const res = await fetch('/api/ai/scan-receipt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: fileBase64,
-          mimeType,
-          preferredCurrency,
-        }),
-      });
+  static async getQuotaStatus(timezone?: string): Promise<AiQuotaStatus> {
+    const headers = await getAuthenticatedHeaders();
+    const tz = timezone || getBrowserTimezone();
+    const url = AndroidBridge.getApiUrl(`/api/ai/quota-status?timezone=${encodeURIComponent(tz)}`);
+    const res = await fetch(url, { method: 'GET', headers });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to scan receipt with Gemini AI');
-      }
-
-      return await res.json();
-    } catch (err: any) {
-      console.warn('AI Receipt scan server error, returning smart mock fallback for demo:', err);
-      // Realistic fallback if API key quota exceeded or server offline
-      return {
-        merchant: 'Whole Foods Market / Cafe Coffee Day',
-        amount: preferredCurrency === 'INR' ? 840 : 22.5,
-        currency: preferredCurrency,
-        date: new Date().toISOString().split('T')[0],
-        category: 'Food & Dining',
-        paymentMode: preferredCurrency === 'INR' ? 'UPI' : 'Credit Card',
-        taxAmount: preferredCurrency === 'INR' ? 42 : 1.8,
-        items: [
-          { name: 'Organic Roast Coffee', price: preferredCurrency === 'INR' ? 380 : 8.5 },
-          { name: 'Artisan Sandwich Combo', price: preferredCurrency === 'INR' ? 460 : 14.0 },
-        ],
-        confidence: 0.94,
-      };
+    if (!res.ok) {
+      throw await parseErrorResponse(res, 'Failed to check daily AI quota status.');
     }
+
+    return await res.json();
   }
 
   /**
-   * Parse natural speech / spoken text into structured transaction
+   * Send grounded AI Chat query (1/day free, unlimited active Pro; failed calls never consume quota)
    */
-  static async parseVoiceExpense(spokenText: string, preferredCurrency: CurrencyCode): Promise<ParsedVoiceExpense> {
-    try {
-      const res = await fetch('/api/ai/voice-expense', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: spokenText,
-          preferredCurrency,
-        }),
-      });
+  static async sendChatQuery(message: string, timezone?: string): Promise<AiChatResponse> {
+    const headers = await getAuthenticatedHeaders();
+    const tz = timezone || getBrowserTimezone();
+    const url = AndroidBridge.getApiUrl('/api/ai/chat');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message: message.trim(),
+        timezone: tz,
+      }),
+    });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to parse voice expense');
-      }
-
-      return await res.json();
-    } catch (err: any) {
-      console.warn('Voice expense server parsing error, running local NLP heuristic:', err);
-      // Robust client-side regex fallback
-      const text = spokenText.toLowerCase();
-      let detectedAmount = 0;
-      const numMatch = text.match(/(?:rs\.?|inr|\$|₹|rupees|dollars)?\s*([0-9]+(?:[.,][0-9]+)?)/i);
-      if (numMatch) {
-        detectedAmount = parseFloat(numMatch[1].replace(/,/g, ''));
-      }
-
-      let cat = 'General';
-      if (text.includes('lunch') || text.includes('dinner') || text.includes('coffee') || text.includes('food') || text.includes('starbucks')) {
-        cat = 'Food & Dining';
-      } else if (text.includes('uber') || text.includes('cab') || text.includes('fuel') || text.includes('petrol') || text.includes('travel')) {
-        cat = 'Transport';
-      } else if (text.includes('blinkit') || text.includes('grocery') || text.includes('milk') || text.includes('market')) {
-        cat = 'Groceries';
-      } else if (text.includes('salary') || text.includes('dividend') || text.includes('received')) {
-        cat = 'Salary';
-      }
-
-      const isIncome = text.includes('received') || text.includes('salary') || text.includes('got paid') || text.includes('earned');
-      const paymentMode: PaymentMode = text.includes('upi') || text.includes('gpay') || text.includes('phonepe')
-        ? 'UPI'
-        : text.includes('card')
-        ? 'Credit Card'
-        : text.includes('cash')
-        ? 'Cash'
-        : 'Net Banking';
-
-      return {
-        amount: detectedAmount || (preferredCurrency === 'INR' ? 450 : 15),
-        currency: preferredCurrency,
-        category: cat,
-        merchantOrDescription: spokenText.slice(0, 40),
-        paymentMode,
-        type: isIncome ? 'income' : 'expense',
-        notes: `Logged via Voice: "${spokenText}"`,
-        rawText: spokenText,
-      };
+    if (!res.ok) {
+      throw await parseErrorResponse(res, 'Failed to generate Gemini AI response.');
     }
+
+    return await res.json();
   }
 
   /**
-   * Request AI Financial Advisor Insights
+   * Request Complete Deep AI Smart Analysis (Independent of Chat Quota)
    */
-  static async getFinancialAdvice(
-    summaryData: {
-      totalBalance: number;
-      monthlyIncome: number;
-      monthlyExpense: number;
-      currency: CurrencyCode;
-      topCategories: { category: string; amount: number }[];
+  static async getDeepSmartAnalysis(
+    accountId: string = 'all',
+    timezone?: string
+  ): Promise<DeepSmartAnalysisResponse> {
+    const headers = await getAuthenticatedHeaders();
+    const tz = timezone || getBrowserTimezone();
+    const url = AndroidBridge.getApiUrl('/api/ai/smart-analysis');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        accountId,
+        timezone: tz,
+      }),
+    });
+
+    if (!res.ok) {
+      throw await parseErrorResponse(res, 'Failed to load Deep AI Smart Analysis.');
     }
-  ): Promise<FinancialHealthInsight> {
-    try {
-      const res = await fetch('/api/ai/advice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(summaryData),
-      });
 
-      if (!res.ok) {
-        throw new Error('Advice server error');
-      }
+    return await res.json();
+  }
 
-      return await res.json();
-    } catch {
-      // Smart calculated fallback
-      const savingsRate = summaryData.monthlyIncome > 0
-        ? Math.max(0, Math.round(((summaryData.monthlyIncome - summaryData.monthlyExpense) / summaryData.monthlyIncome) * 100))
-        : 25;
+  /**
+   * Request Real Daily AI Insights with smart Firestore caching (Independent of Chat Quota)
+   */
+  static async getDailyInsights(options?: {
+    accountId?: string;
+    forceRefresh?: boolean;
+    timezone?: string;
+  }): Promise<DailyAiInsightsResponse> {
+    const headers = await getAuthenticatedHeaders();
+    const tz = options?.timezone || getBrowserTimezone();
+    const url = AndroidBridge.getApiUrl('/api/ai/insights');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        accountId: options?.accountId || 'all',
+        forceRefresh: Boolean(options?.forceRefresh),
+        timezone: tz,
+      }),
+    });
 
-      const score = Math.min(95, Math.max(45, 50 + Math.round(savingsRate * 0.45)));
-
-      return {
-        score,
-        rating: score >= 80 ? 'Excellent' : score >= 65 ? 'Good' : 'Needs Attention',
-        summary: `Your monthly savings rate stands at ${savingsRate}%. Overall liquidity is solid with balanced expense ratios across high-priority buckets.`,
-        monthlySavingsRate: savingsRate,
-        anomalies: [
-          'Dining and takeaway expenses were 18% higher during the first week of the month.',
-          'Consider reviewing recurring SaaS subscriptions before next billing renewal cycle.',
-        ],
-        tips: [
-          {
-            title: 'Automate 20% to Emergency Fund',
-            description: 'Set up an auto-debit of your salary on the 1st of every month directly to your high-yield savings account.',
-            impact: 'high',
-            category: 'Savings',
-          },
-          {
-            title: 'Consolidate Cloud & Media Subscriptions',
-            description: 'You have multiple recurring subscriptions. Switching to annual billing can save up to 25% annually.',
-            impact: 'medium',
-            category: 'Subscriptions',
-          },
-          {
-            title: 'Optimize Credit Utilization',
-            description: 'Keep your credit card statement balance below 30% of total limit to boost your credit score.',
-            impact: 'medium',
-            category: 'Credit',
-          },
-        ],
-      };
+    if (!res.ok) {
+      throw await parseErrorResponse(res, 'Failed to load Daily AI Insights.');
     }
+
+    return await res.json();
+  }
+
+  /**
+   * Request Budget Planning AI recommendations (Independent of Chat Quota, never auto-mutates)
+   */
+  static async getBudgetPlan(timezone?: string): Promise<BudgetPlanResponse> {
+    const headers = await getAuthenticatedHeaders();
+    const tz = timezone || getBrowserTimezone();
+    const url = AndroidBridge.getApiUrl('/api/ai/budget-plan');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ timezone: tz }),
+    });
+
+    if (!res.ok) {
+      throw await parseErrorResponse(res, 'Failed to generate AI Budget Plan.');
+    }
+
+    return await res.json();
+  }
+
+  /**
+   * Scan receipt image via authenticated server-side Gemini AI
+   */
+  static async scanReceipt(
+    fileBase64: string,
+    mimeType: string,
+    preferredCurrency: CurrencyCode
+  ): Promise<ParsedReceiptData> {
+    const headers = await getAuthenticatedHeaders();
+    const url = AndroidBridge.getApiUrl('/api/ai/scan-receipt');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        image: fileBase64,
+        mimeType,
+        preferredCurrency,
+      }),
+    });
+
+    if (!res.ok) {
+      throw await parseErrorResponse(res, 'Failed to scan receipt with Gemini AI');
+    }
+
+    return await res.json();
+  }
+
+  /**
+   * Parse natural speech / spoken text into structured transaction via authenticated backend
+   */
+  static async parseVoiceExpense(
+    spokenText: string,
+    preferredCurrency: CurrencyCode
+  ): Promise<ParsedVoiceExpense> {
+    const headers = await getAuthenticatedHeaders();
+    const url = AndroidBridge.getApiUrl('/api/ai/voice-expense');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        text: spokenText,
+        preferredCurrency,
+      }),
+    });
+
+    if (!res.ok) {
+      throw await parseErrorResponse(res, 'Failed to parse voice expense with Gemini AI');
+    }
+
+    return await res.json();
+  }
+
+  /**
+   * Request AI Financial Advisor Insights (grounded in real Firestore ledger)
+   */
+  static async getFinancialAdvice(_summaryData?: {
+    totalBalance?: number;
+    monthlyIncome?: number;
+    monthlyExpense?: number;
+    currency?: CurrencyCode;
+    topCategories?: { category: string; amount: number }[];
+  }): Promise<FinancialHealthInsight> {
+    const headers = await getAuthenticatedHeaders();
+    const url = AndroidBridge.getApiUrl('/api/ai/advice');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ timezone: getBrowserTimezone() }),
+    });
+
+    if (!res.ok) {
+      throw await parseErrorResponse(res, 'Failed to generate AI financial advice.');
+    }
+
+    return await res.json();
   }
 }

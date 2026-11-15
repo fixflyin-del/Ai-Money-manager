@@ -168,6 +168,7 @@ export interface UserProfile {
   dailyAiQuestionsRemaining?: number;
   dailyAiQuestionsUsed?: number;
   dailyAiLastDate?: string;
+  timezone?: string;
   categoriesSeeded?: boolean;
   subscription: UserSubscription;
 }
@@ -211,3 +212,193 @@ export interface FinancialHealthInsight {
     category: string;
   }[];
 }
+
+export interface AiQuotaStatus {
+  isPro: boolean;
+  questionsRemaining: number;
+  questionsUsed: number;
+  limit: number | null;
+  date: string;
+  timezone: string;
+  resetAt: string;
+  dailyLimitReached: boolean;
+}
+
+export interface AiChatResponse extends AiQuotaStatus {
+  reply: string;
+  modelUsed?: string;
+  ledgerHighlights?: {
+    totalBalance: number;
+    thisMonthIncome: number;
+    thisMonthExpense: number;
+    savingsRate: number;
+    preferredCurrency: string;
+  };
+}
+
+export interface DailyInsightItem {
+  category: string;
+  amountSpent: number;
+  percentageOfExpenses: number | null;
+  reason: string;
+  recommendedAction: string;
+  estimatedPotentialSavings: number | null;
+  priority: 'High' | 'Medium' | 'Low';
+}
+
+export interface DailyAiInsightsResponse {
+  success: boolean;
+  cached: boolean;
+  rateProtected?: boolean;
+  ledgerHash: string;
+  generatedAt: string;
+  modelUsed: string;
+  preferredCurrency: string;
+  summary: string;
+  insights: DailyInsightItem[];
+}
+
+export interface DeepSmartAnalysisMetrics {
+  preferredCurrency: string;
+  timezone: string;
+  scopeAccountId: string;
+  scopeLabel: string;
+  currentMonth: string;
+  lastMonth: string;
+  totalBalance: number;
+  activeAccountsCount: number;
+  totalTransactionsCount: number;
+  thisMonth: {
+    income: number;
+    expense: number;
+    netSavings: number;
+    savingsRate: number;
+    transferIn: number;
+    transferOut: number;
+    transferInternal: number;
+    transactionCount: number;
+    dailyBurnRate: number;
+    projectedMonthExpense: number;
+    runwayDays: number;
+  };
+  lastMonthSummary: {
+    income: number;
+    expense: number;
+    netSavings: number;
+    savingsRate: number;
+  };
+  healthScore: number;
+  healthRating: 'Excellent' | 'Good' | 'Needs Attention' | 'Critical';
+  topCategories: {
+    category: string;
+    amount: number;
+    count: number;
+    percentageOfExpenses: number;
+    lastMonthAmount: number;
+    momChangePercent: number | null;
+  }[];
+  accountPositions: {
+    id: string;
+    name: string;
+    type: string;
+    currency: string;
+    nativeBalance: number;
+    convertedBalance: number;
+    thisMonthIncome: number;
+    thisMonthExpense: number;
+    sharePercent: number;
+  }[];
+  last6MonthsTrend: { key: string; label: string; income: number; expense: number; netSavings: number }[];
+  unusualExpenses: {
+    transactionId: string;
+    date: string;
+    category: string;
+    description: string;
+    amountConverted: number;
+    reason: string;
+  }[];
+  recurringExpenses: {
+    label: string;
+    category: string;
+    occurrences: number;
+    averageAmountConverted: number;
+    totalAmountConverted: number;
+    lastDate: string;
+  }[];
+  budgetUtilization: {
+    id: string;
+    category: string;
+    limitConverted: number;
+    spentConverted: number;
+    remainingConverted: number;
+    percentUsed: number;
+    projectedMonthSpend: number;
+    status: 'ok' | 'warning' | 'overbudget';
+  }[];
+  riskWarnings: {
+    code: string;
+    title: string;
+    severity: 'high' | 'medium' | 'low';
+    detail: string;
+  }[];
+  availableSavingsCapacity: number;
+}
+
+export interface DeepSmartAnalysisResponse {
+  success: boolean;
+  modelUsed: string;
+  generatedAt: string;
+  metrics: DeepSmartAnalysisMetrics;
+  aiAnalysis: {
+    executiveSummary: string;
+    healthScoreExplanation: string;
+    spendingTrendSummary: string;
+    unusualExpenseAnalysis: string;
+    recurringExpenseAnalysis: string;
+    riskExplanations: {
+      title: string;
+      severity: 'high' | 'medium' | 'low';
+      explanation: string;
+      impact: string;
+    }[];
+    savingOpportunities: {
+      title: string;
+      category: string;
+      action: string;
+      potentialMonthlySavings: number;
+      basis: string;
+    }[];
+    recommendedNextActions: {
+      priority: 'High' | 'Medium' | 'Low';
+      title: string;
+      detail: string;
+      targetMetric: string;
+    }[];
+  };
+}
+
+export interface BudgetCategoryRecommendation {
+  category: string;
+  currentMonthlySpend: number;
+  existingLimit: number | null;
+  recommendedLimit: number;
+  suggestedMonthlySavings: number;
+  reasoning: string;
+  priority: 'High' | 'Medium' | 'Low';
+}
+
+export interface BudgetPlanResponse {
+  success: boolean;
+  modelUsed: string;
+  generatedAt: string;
+  preferredCurrency: string;
+  plan: {
+    monthlyIncome: number;
+    monthlyExpense: number;
+    availableSavingsCapacity: number;
+    recommendedMonthlySavings: number;
+    overallStrategy: string;
+    categoryRecommendations: BudgetCategoryRecommendation[];
+  };
+}
+

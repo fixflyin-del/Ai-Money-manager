@@ -51,10 +51,48 @@ service cloud.firestore {
         allow create, update, delete: if (isOwner(userId) || isAdmin()) && isValidId(transactionId);
       }
 
-      // AI Usage Subcollection
+      // AI Usage Subcollection (monotonic questionsCount, no user delete to prevent quota bypass)
       match /ai_usage/{usageDate} {
         allow get, list: if isOwner(userId) || isAdmin();
-        allow create, update, delete: if (isOwner(userId) || isAdmin()) && isValidId(usageDate);
+        allow create: if isAdmin() || (
+          isOwner(userId) &&
+          isValidId(usageDate) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.questionsCount is int &&
+          request.resource.data.questionsCount >= 0 &&
+          request.resource.data.questionsCount <= 1 &&
+          (!('pendingCount' in request.resource.data) || (
+            request.resource.data.pendingCount is int &&
+            request.resource.data.pendingCount >= 0 &&
+            request.resource.data.pendingCount <= 1
+          ))
+        );
+        allow update: if isAdmin() || (
+          isOwner(userId) &&
+          isValidId(usageDate) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.questionsCount is int &&
+          request.resource.data.questionsCount >= resource.data.questionsCount &&
+          request.resource.data.questionsCount <= resource.data.questionsCount + 1 &&
+          (!('pendingCount' in request.resource.data) || (
+            request.resource.data.pendingCount is int &&
+            request.resource.data.pendingCount >= 0 &&
+            request.resource.data.pendingCount <= 1
+          ))
+        );
+        allow delete: if isAdmin();
+      }
+
+      // Budgets Subcollection
+      match /budgets/{budgetId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if (isOwner(userId) || isAdmin()) && isValidId(budgetId);
+      }
+
+      // Cached Daily AI Insights Subcollection
+      match /ai_insights/{cacheId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if (isOwner(userId) || isAdmin()) && isValidId(cacheId);
       }
     }
 

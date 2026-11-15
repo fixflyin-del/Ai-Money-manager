@@ -38,9 +38,11 @@ export const AiAdvisorModal: React.FC<AiAdvisorModalProps> = ({
 }) => {
   const [insight, setInsight] = useState<FinancialHealthInsight | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const loadAdvice = async () => {
     setIsLoading(true);
+    setErrorMsg(null);
     try {
       const data = await AiService.getFinancialAdvice({
         totalBalance,
@@ -50,8 +52,8 @@ export const AiAdvisorModal: React.FC<AiAdvisorModalProps> = ({
         topCategories,
       });
       setInsight(data);
-    } catch {
-      // Fallback
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Unable to load Gemini AI advice. Please retry.');
     } finally {
       setIsLoading(false);
     }
@@ -96,11 +98,26 @@ export const AiAdvisorModal: React.FC<AiAdvisorModalProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          {isLoading || !insight ? (
+          {errorMsg ? (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-200 space-y-2.5">
+              <div className="font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>AI Advisor Unavailable</span>
+              </div>
+              <p>{errorMsg}</p>
+              <button
+                type="button"
+                onClick={loadAdvice}
+                className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-white font-bold transition cursor-pointer"
+              >
+                Retry Audit
+              </button>
+            </div>
+          ) : isLoading || !insight ? (
             <div className="py-12 flex flex-col items-center justify-center text-center space-y-3">
               <Sparkles className="w-8 h-8 text-emerald-400 animate-spin" />
               <div className="text-xs font-semibold text-slate-300">
-                Gemini 2.5 Flash auditing cashflow & budget anomalies...
+                Auditing your cashflow & ledger insights with Gemini AI...
               </div>
             </div>
           ) : (

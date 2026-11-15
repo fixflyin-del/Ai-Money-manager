@@ -230,6 +230,13 @@ export function serializeUserProfileForFirestore(
     updatedAt: new Date().toISOString(),
   };
 
+  if (typeof profile.timezone === 'string' && profile.timezone.trim()) {
+    payload.timezone = profile.timezone.trim();
+  }
+  if (typeof profile.subscription?.expiryDate === 'string' && profile.subscription.expiryDate.trim()) {
+    payload.expiryDate = profile.subscription.expiryDate.trim();
+  }
+
   return stripUndefined(payload);
 }
 

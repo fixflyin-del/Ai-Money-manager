@@ -2,7 +2,7 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "User profile information, settings, theme, and subscription status",
+      "description": "User profile information, settings, timezone, theme, and subscription status",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
@@ -10,6 +10,7 @@
         "email": { "type": "string", "maxLength": 150 },
         "mobileNumber": { "type": "string", "maxLength": 30 },
         "preferredCurrency": { "type": "string", "maxLength": 10 },
+        "timezone": { "type": "string", "maxLength": 80 },
         "storageMode": { "type": "string", "enum": ["local", "cloud"] },
         "themeMode": { "type": "string", "enum": ["light", "dark", "system"] },
         "darkModeEnabled": { "type": "boolean" },
@@ -78,17 +79,52 @@
       },
       "required": ["id", "userId", "accountId", "amount", "currency", "type", "date"]
     },
+    "Budget": {
+      "title": "Budget",
+      "description": "Monthly category spending limits and alert thresholds",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 100 },
+        "monthlyLimit": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "alertThreshold": { "type": "number" },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "category", "monthlyLimit", "currency"]
+    },
     "AiDailyUsage": {
       "title": "AiDailyUsage",
-      "description": "Daily AI chat question tracking per user for quota enforcement",
+      "description": "Daily AI chat question tracking per user for transactional quota enforcement",
       "type": "object",
       "properties": {
         "userId": { "type": "string", "maxLength": 128 },
         "date": { "type": "string", "maxLength": 20 },
+        "timezone": { "type": "string", "maxLength": 80 },
         "questionsCount": { "type": "number" },
-        "lastQuestionAt": { "type": "string", "maxLength": 50 }
+        "pendingCount": { "type": "number" },
+        "pendingStartedAtMs": { "type": "number" },
+        "lastQuestionAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
       },
       "required": ["userId", "date", "questionsCount"]
+    },
+    "AiInsightCache": {
+      "title": "AiInsightCache",
+      "description": "Smart ledger-hash cached Daily AI Insights per user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "scopeAccountId": { "type": "string", "maxLength": 128 },
+        "ledgerHash": { "type": "string", "maxLength": 64 },
+        "preferredCurrency": { "type": "string", "maxLength": 10 },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "insights": { "type": "array" },
+        "modelUsed": { "type": "string", "maxLength": 80 },
+        "generatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["userId", "ledgerHash", "summary", "insights"]
     }
   },
   "firestore": {
@@ -108,9 +144,17 @@
       "schema": "Transaction",
       "description": "Financial transactions in ledger"
     },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": "Budget",
+      "description": "User monthly category budgets"
+    },
     "/users/{userId}/ai_usage/{usageDate}": {
       "schema": "AiDailyUsage",
-      "description": "Daily AI usage record for quota enforcement"
+      "description": "Daily AI usage record for transactional quota enforcement"
+    },
+    "/users/{userId}/ai_insights/{cacheId}": {
+      "schema": "AiInsightCache",
+      "description": "Smart cached daily AI insights keyed by material ledger hash"
     }
   }
 }

@@ -81,6 +81,7 @@ export class CloudFirestoreService {
           biometricsEnabled: Boolean(data.biometricsEnabled),
           autoLockMinutes: data.autoLockMinutes || 5,
           categoriesSeeded: Boolean(data.categoriesSeeded),
+          timezone: data.timezone || undefined,
           subscription: {
             isPro: Boolean(data.isPro),
             planName: data.planName || 'Free Plan',
@@ -88,6 +89,7 @@ export class CloudFirestoreService {
             billingCurrency: data.billingCurrency || 'INR',
             amountPaid: data.amountPaid || 0,
             gateway: data.gateway || 'PayU',
+            expiryDate: data.expiryDate || undefined,
             status: data.isPro ? 'active' : 'cancelled',
           },
         };
@@ -128,6 +130,7 @@ export class CloudFirestoreService {
             biometricsEnabled: Boolean(data.biometricsEnabled),
             autoLockMinutes: data.autoLockMinutes || 5,
             categoriesSeeded: Boolean(data.categoriesSeeded),
+            timezone: data.timezone || undefined,
             subscription: {
               isPro: Boolean(data.isPro),
               planName: data.planName || 'Free Plan',
@@ -135,6 +138,7 @@ export class CloudFirestoreService {
               billingCurrency: data.billingCurrency || 'INR',
               amountPaid: data.amountPaid || 0,
               gateway: data.gateway || 'PayU',
+              expiryDate: data.expiryDate || undefined,
               status: data.isPro ? 'active' : 'cancelled',
             },
           });

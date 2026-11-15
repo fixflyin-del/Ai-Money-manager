@@ -162,7 +162,22 @@ export const IS_TEMPORARY_FREE_LAUNCH = true;
 export class EntitlementService {
   static isPro(profile?: UserProfile | null): boolean {
     if (IS_TEMPORARY_FREE_LAUNCH) return true;
-    return Boolean(profile?.subscription && profile.subscription.isPro);
+    return this.hasPaidProChatEntitlement(profile);
+  }
+
+  /**
+   * Authoritative Pro check for AI Chat quota:
+   * Free users strictly receive 1 AI Chat query/day; active paid Pro users receive unlimited AI Chat.
+   */
+  static hasPaidProChatEntitlement(profile?: UserProfile | null): boolean {
+    const sub = profile?.subscription;
+    if (!sub || !sub.isPro) return false;
+    if (sub.status === 'cancelled' || sub.status === 'expired') return false;
+    if (sub.expiryDate) {
+      const expiryMs = new Date(sub.expiryDate).getTime();
+      if (!isNaN(expiryMs) && expiryMs <= Date.now()) return false;
+    }
+    return true;
   }
 
   static canAccess(profile: UserProfile, feature: FeatureKey): boolean {
@@ -174,8 +189,7 @@ export class EntitlementService {
   }
 
   static getRemainingAiQuestions(profile: UserProfile): number {
-    if (IS_TEMPORARY_FREE_LAUNCH) return 999999;
-    if (this.isPro(profile)) return 999999;
+    if (this.hasPaidProChatEntitlement(profile)) return 999999;
     const today = new Date().toISOString().slice(0, 10);
     const lastDate = profile.dailyAiLastDate || '';
     if (lastDate !== today) {

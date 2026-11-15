@@ -88,6 +88,7 @@ export const AnalysisScreen: React.FC<AnalysisScreenProps> = ({
     else if (selectedTimeFilter === 'all') pLabel = 'All Time';
 
     const list = transactions.filter((tx) => {
+      if (tx.isDeleted) return false;
       // 1. Account Filter
       if (selectedAccountId !== 'all') {
         const matchesSource = tx.accountId === selectedAccountId;
