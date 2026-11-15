@@ -762,12 +762,11 @@ Keep your response concise, helpful, practical, and clear.`;
     let reply = '';
     if (ai) {
       try {
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 4000));
-        const aiPromise = ai.models.generateContent({
+        const response: any = await ai.models.generateContent({
           model: 'gemini-3.8-flash',
           contents: contextPrompt,
+          config: { temperature: 0.2 },
         });
-        const response: any = await Promise.race([aiPromise, timeoutPromise]);
         reply =
           response.text || 'I analyzed your accounts. Your financial figures are computed directly from your authorized ledger.';
       } catch {
@@ -969,6 +968,7 @@ Generate:
     });
 
     const parsed = JSON.parse(response.text || '{}');
+    return res.json({ ...parsed, fallback: false });
   } catch (error: any) {
     console.error('AI Insights error (using deterministic reserve fallback):', error?.message);
     const savingsRate =
@@ -979,11 +979,13 @@ Generate:
       rating: 'Good',
       summary: `Your accounts are active with a ${savingsRate}% savings margin. Financial figures are computed deterministically from your authorized ledger.`,
       monthlySavingsRate: savingsRate,
-      anomalies: ['Weekend discretionary spending was slightly elevated.'],
+      anomalies: [],
       tips: [
         {
-          title: 'Automate Emergency Fund Allocation',
-          description: 'Set aside at least 15% of regular income in a liquid interest-bearing account.',
+          title: topCategories?.[0]?.name ? `Review ${topCategories[0].name} spending` : 'Categorize your expenses',
+          description: topCategories?.[0]?.name
+            ? `Your highest recorded category is ${topCategories[0].name}. Review those transactions and set a realistic monthly limit.`
+            : 'Add categories to your transactions so the app can identify where your money goes and provide specific recommendations.',
           impact: 'high',
           category: 'Savings',
         },
