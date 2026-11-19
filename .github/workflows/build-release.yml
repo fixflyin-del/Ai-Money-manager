@@ -174,7 +174,7 @@ jobs:
             - Signed APK and AAB; signature verification required to pass.
             - 100% Free Launch Mode preserved.
           files: |
-            release-output/AI-Money-Manager-v6.1.9-signed.apk
-            release-output/AI-Money-Manager-v6.1.9-signed.aab
+            release-output/AI-Money-Manager-v6.2.0-signed.apk
+            release-output/AI-Money-Manager-v6.2.0-signed.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
