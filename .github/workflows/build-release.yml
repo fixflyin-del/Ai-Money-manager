@@ -46,8 +46,24 @@ jobs:
       - name: Install Node Dependencies
         run: npm install --no-audit --no-fund
 
+      - name: TypeScript Type Check
+        run: npm run lint
+
       - name: Build Web Application and Sync Android Assets
         run: node scripts/build-android.js
+
+      - name: Assert Google Play Billing Is Completely Removed
+        run: |
+          set -euo pipefail
+          if [ -f android/app/src/main/java/com/aimoneymanager/app/PlayBillingManager.java ]; then
+            echo "::error::PlayBillingManager.java must not exist in the free Android build."
+            exit 1
+          fi
+          if grep -RInE 'PlayBillingManager|com\.android\.billingclient|com\.android\.vending\.(BILLING|CHECK_LICENSE)|BillingClient|launchBillingFlow|queryPurchasesAsync' android/app/src/main android/app/build.gradle; then
+            echo "::error::Google Play Billing reference detected in Android source."
+            exit 1
+          fi
+          echo "Verified: no Google Play Billing source, dependency, or permission."
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -84,6 +100,17 @@ jobs:
           test -s "$KEYSTORE_PATH"
           echo "RELEASE_STORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
+      - name: Verify Release Runtime Has No Billing Dependency
+        working-directory: android
+        run: |
+          set -euo pipefail
+          gradle :app:dependencies --configuration releaseRuntimeClasspath > "$RUNNER_TEMP/release-dependencies.txt"
+          if grep -qi 'com.android.billingclient' "$RUNNER_TEMP/release-dependencies.txt"; then
+            echo "::error::Google Play Billing dependency found in releaseRuntimeClasspath."
+            exit 1
+          fi
+          echo "Verified: releaseRuntimeClasspath has no Google Play Billing."
+
       - name: Build Signed Release APK and AAB
         working-directory: android
         env:
@@ -109,6 +136,12 @@ jobs:
           test -n "$AAB_PATH"
           APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           "$APKSIGNER" verify --verbose --print-certs "$APK_PATH"
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          "$AAPT" dump permissions "$APK_PATH" > "$RUNNER_TEMP/apk-permissions.txt"
+          if grep -E 'com\.android\.vending\.(BILLING|CHECK_LICENSE)' "$RUNNER_TEMP/apk-permissions.txt"; then
+            echo "::error::Google Play Billing permission found in the final APK."
+            exit 1
+          fi
           jarsigner -verify -verbose -certs "$AAB_PATH"
           keytool -printcert -jarfile "$AAB_PATH"
 
@@ -118,26 +151,26 @@ jobs:
           mkdir -p release-output
           APK_PATH="$(find android/app/build/outputs/apk/release -name '*.apk' -print -quit)"
           AAB_PATH="$(find android/app/build/outputs/bundle/release -name '*.aab' -print -quit)"
-          cp "$APK_PATH" release-output/AI-Money-Manager-v6.1.9-signed.apk
-          cp "$AAB_PATH" release-output/AI-Money-Manager-v6.1.9-signed.aab
+          cp "$APK_PATH" release-output/AI-Money-Manager-v6.2.0-signed.apk
+          cp "$AAB_PATH" release-output/AI-Money-Manager-v6.2.0-signed.aab
 
       - name: Upload Verified APK and AAB
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Money-Manager-v6.1.9-SIGNED-Release-Builds
+          name: AI-Money-Manager-v6.2.0-SIGNED-Release-Builds
           path: release-output/
 
       - name: Create GitHub Release with Signed Downloads
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v6.1.9' }}
-          name: AI Money Manager Release v6.1.9 (Signed)
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v6.2.0' }}
+          name: AI Money Manager Release v6.2.0 (Signed)
           body: |
-            ## Fixfly AI Money Manager v6.1.9
+            ## Fixfly AI Money Manager v6.2.0
             - Package: `com.aimoneymanager.app`
-            - Version Name: `6.1.9`
-            - Version Code: `19`
+            - Version Name: `6.2.0`
+            - Version Code: `20`
             - Signed APK and AAB; signature verification required to pass.
             - 100% Free Launch Mode preserved.
           files: |

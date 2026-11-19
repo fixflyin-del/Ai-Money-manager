@@ -9,7 +9,7 @@ import confetti from 'canvas-confetti';
 import { UserProfile } from '../types/finance';
 import { processWebCheckout } from '../services/subscriptionService';
 import { StorageService } from '../services/storageService';
-import { IS_TEMPORARY_FREE_LAUNCH } from '../services/entitlementService';
+import { IS_FREE_EDITION } from '../services/entitlementService';
 
 interface PremiumModalProps {
   isOpen: boolean;
@@ -34,7 +34,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
   if (!isOpen) return null;
 
   const handleSubscribe = async (planId: 'monthly' | 'annual' | 'lifetime') => {
-    if (IS_TEMPORARY_FREE_LAUNCH) {
+    if (IS_FREE_EDITION) {
       setStatusMsg('🎉 All Premium features are already 100% unlocked for your account during our launch celebration!');
       return;
     }
@@ -111,7 +111,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
         </div>
 
         {/* Launch Celebration Banner */}
-        {IS_TEMPORARY_FREE_LAUNCH && (
+        {IS_FREE_EDITION && (
           <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700/60 text-emerald-900 dark:text-emerald-200 space-y-1">
             <div className="flex items-center gap-2 font-extrabold text-xs text-emerald-700 dark:text-emerald-300">
               <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -194,7 +194,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
                   {billingRegion === 'IN' ? '₹49' : '$0.99'}
                   <span className="text-xs text-slate-400 font-normal"> / mo</span>
                 </div>
-                {IS_TEMPORARY_FREE_LAUNCH ? (
+                {IS_FREE_EDITION ? (
                   <button
                     disabled
                     className="mt-1.5 py-1.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-xs flex items-center justify-end gap-1 cursor-default ml-auto"
@@ -231,7 +231,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
                   {billingRegion === 'IN' ? '₹499' : '$9.99'}
                   <span className="text-xs text-slate-400 font-normal"> / yr</span>
                 </div>
-                {IS_TEMPORARY_FREE_LAUNCH ? (
+                {IS_FREE_EDITION ? (
                   <button
                     disabled
                     className="mt-1.5 py-1.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-xs flex items-center justify-end gap-1 cursor-default ml-auto"
@@ -264,7 +264,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
                 <div className="text-lg font-extrabold font-mono-numbers text-amber-600 dark:text-amber-400">
                   {billingRegion === 'IN' ? '₹1,450' : '$29.99'}
                 </div>
-                {IS_TEMPORARY_FREE_LAUNCH ? (
+                {IS_FREE_EDITION ? (
                   <button
                     disabled
                     className="mt-1.5 py-1.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-xs flex items-center justify-end gap-1 cursor-default ml-auto"
@@ -329,7 +329,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({
             </div>
 
             <div className="pt-2 text-center">
-              {IS_TEMPORARY_FREE_LAUNCH ? (
+              {IS_FREE_EDITION ? (
                 <button
                   onClick={onClose}
                   className="py-2.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
