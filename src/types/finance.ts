@@ -134,6 +134,32 @@ export interface ExchangeRates {
   source: string;
 }
 
+export interface SubscriptionPlanDefinition {
+  id: 'monthly' | 'annual' | 'lifetime';
+  name: string;
+  duration: string;
+  badge?: string;
+  features: string[];
+  pricing: {
+    IN: {
+      currency: 'INR';
+      symbol: string;
+      price: number;
+      displayPrice: string;
+      gateway: string;
+      gatewayProductId: string;
+    };
+    GLOBAL: {
+      currency: 'USD';
+      symbol: string;
+      price: number;
+      displayPrice: string;
+      gateway: string;
+      gatewayProductId: string;
+    };
+  };
+}
+
 export interface UserSubscription {
   isPro: boolean;
   planId?: 'monthly' | 'annual' | 'lifetime';
