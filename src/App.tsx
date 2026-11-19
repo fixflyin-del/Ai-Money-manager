@@ -27,7 +27,6 @@ import { AnalysisScreen } from './components/AnalysisScreen';
 import { AiManagerScreen } from './components/AiManagerScreen';
 import { ProfileScreen } from './components/ProfileScreen';
 import { AddTransactionModal } from './components/AddTransactionModal';
-import { PremiumModal } from './components/PremiumModal';
 import { PinLockModal } from './components/PinLockModal';
 import { AdminPanel } from './components/AdminPanel';
 import { WebsitePortal, WebsitePage } from './components/website/WebsitePortal';
@@ -81,7 +80,6 @@ export default function App() {
   // Modals
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [isAddEntryModalOpen, setIsAddEntryModalOpen] = useState(false);
-  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
   const [isAppLocked, setIsAppLocked] = useState(false);
   const [manageInitialAddAccount, setManageInitialAddAccount] = useState(false);
 
@@ -116,39 +114,10 @@ export default function App() {
     unsubsRef.current = [];
   }, []);
 
-  // 1. Initial live rates & Play Billing listener
+  // 1. Initial live rates & Firestore connection test
   useEffect(() => {
     fetchLiveRates();
     CloudFirestoreService.testConnection();
-
-    // Android Google Play billing purchase result listener
-    window.onPlayBillingPurchaseResult = (jsonStr: string) => {
-      try {
-        const res = JSON.parse(jsonStr);
-        if (res.success) {
-          const currentProfile = StorageService.getUserProfile();
-          const updated: UserProfile = {
-            ...currentProfile,
-            subscription: {
-              ...currentProfile.subscription,
-              isPro: true,
-              planName: 'Google Play Pro',
-              gateway: 'Google Play Billing',
-              transactionId: res.orderId || `play_${Date.now()}`,
-              purchaseDate: new Date().toISOString(),
-              status: 'active',
-            },
-          };
-          StorageService.saveUserProfile(updated);
-          setProfile(updated);
-          if (updated.firebaseUid) {
-            CloudFirestoreService.saveUserProfile(updated);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to parse Play Billing purchase result:', err);
-      }
-    };
   }, []);
 
   // 2. Authoritative Firebase Authentication & Real-Time Firestore Synchronization
@@ -785,7 +754,6 @@ export default function App() {
             setActiveTab(tab);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          onOpenUpgrade={() => setIsPremiumModalOpen(true)}
           onToggleDarkMode={handleToggleDarkMode}
           onSelectAllAccounts={handleShowAllAccountsCombined}
           isAllAccountsActive={activeTab === 'home' && homeSelectedAccountId === 'all'}
@@ -806,7 +774,6 @@ export default function App() {
           }}
           isDrawerOpen={isDrawerOpen}
           setIsDrawerOpen={setIsDrawerOpen}
-          onOpenUpgrade={() => setIsPremiumModalOpen(true)}
           onSelectAllAccounts={handleShowAllAccountsCombined}
           isAllAccountsActive={activeTab === 'home' && homeSelectedAccountId === 'all'}
         />
@@ -941,7 +908,6 @@ export default function App() {
               profile={profile}
               accounts={accounts}
               transactions={transactions}
-              onOpenUpgrade={() => setIsPremiumModalOpen(true)}
             />
           )}
 
@@ -950,7 +916,6 @@ export default function App() {
               profile={profile}
               accounts={accounts}
               transactions={transactions}
-              onOpenUpgrade={() => setIsPremiumModalOpen(true)}
             />
           )}
 
@@ -961,7 +926,6 @@ export default function App() {
               transactions={transactions}
               totalBalance={totalBalance}
               onUpdateProfile={handleUpdateProfile}
-              onOpenUpgrade={() => setIsPremiumModalOpen(true)}
               onOpenGoogleSignIn={() => setIsWelcomeModalOpen(true)}
             />
           )}
@@ -983,15 +947,7 @@ export default function App() {
         }}
       />
 
-      {/* 6. Premium Upgrade Modal */}
-      <PremiumModal
-        isOpen={isPremiumModalOpen}
-        onClose={() => setIsPremiumModalOpen(false)}
-        profile={profile}
-        onUpdateProfile={handleUpdateProfile}
-      />
-
-      {/* 8. Mobile Bottom Navigation */}
+      {/* 6. Mobile Bottom Navigation */}
       <BottomNav
         activeTab={activeTab}
         onTabChange={(tab) => {

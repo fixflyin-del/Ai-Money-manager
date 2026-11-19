@@ -231,12 +231,12 @@ const testProfile: UserProfile = {
   biometricsEnabled: false,
   autoLockMinutes: 5,
   subscription: {
-    isPro: true,
-    planName: 'Launch Free Pro',
+    isPro: false,
+    planName: '100% Free Edition',
     billingRegion: 'IN',
     billingCurrency: 'INR',
     amountPaid: 0,
-    gateway: 'PayU',
+    gateway: 'Free',
     status: 'active',
   },
 };

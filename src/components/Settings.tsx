@@ -6,33 +6,24 @@
 import React, { useState, useMemo } from 'react';
 import {
   Globe2,
-  Crown,
   Lock,
   Cloud,
   HardDrive,
   Download,
   Upload,
   RotateCcw,
-  Check,
-  Search,
-  Sparkles,
-  ShieldCheck,
   CheckCircle2,
   AlertCircle,
   Play,
   Clock,
-  ArrowRight,
-  CreditCard,
-  Building2,
   Info,
   GitBranch,
   Loader2,
   Smartphone,
+  Search,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import {
   CurrencyCode,
-  CurrencyInfo,
   SUPPORTED_CURRENCIES,
   UserProfile,
 } from '../types/finance';
@@ -43,9 +34,6 @@ import {
   getCurrencyInfo,
 } from '../services/currencyService';
 import { StorageService } from '../services/storageService';
-import { processWebCheckout } from '../services/subscriptionService';
-import { AndroidBridge } from '../services/androidBridge';
-import { EntitlementService } from '../services/entitlementService';
 
 interface SettingsProps {
   profile: UserProfile;
@@ -63,20 +51,13 @@ export const Settings: React.FC<SettingsProps> = ({
 
   // Settings Sub-Tabs
   const [activeSection, setActiveSection] = useState<
-    'currency' | 'subscription' | 'security' | 'storage' | 'backup' | 'testsuite'
+    'currency' | 'security' | 'storage' | 'backup' | 'testsuite'
   >('currency');
 
   // Currency Search & Selection State
   const [currencySearch, setCurrencySearch] = useState('');
   const [selectedCurrencyToApply, setSelectedCurrencyToApply] = useState<CurrencyCode>(currentCurrency);
   const [currencyApplySuccess, setCurrencyApplySuccess] = useState(false);
-
-  // Subscription Billing Region Selection (Completely independent of display currency!)
-  const [billingRegion, setBillingRegion] = useState<'IN' | 'GLOBAL'>(
-    profile.subscription.billingRegion || 'IN'
-  );
-  const [isUpgrading, setIsUpgrading] = useState(false);
-  const [upgradeMessage, setUpgradeMessage] = useState<string | null>(null);
 
   // Security State
   const [pinInput, setPinInput] = useState('');
@@ -143,24 +124,6 @@ export const Settings: React.FC<SettingsProps> = ({
     setTimeout(() => setCurrencyApplySuccess(false), 2500);
   };
 
-  const handleCheckout = async (planId: 'monthly' | 'annual' | 'lifetime') => {
-    setIsUpgrading(true);
-    setUpgradeMessage(null);
-
-    const res = await processWebCheckout(planId, billingRegion, profile);
-    setIsUpgrading(false);
-
-    if (res.success) {
-      confetti({ particleCount: 75, spread: 70, origin: { y: 0.6 } });
-      setUpgradeMessage(
-        `Successfully subscribed via ${res.gateway}! Billed ${res.billingCurrency} ${res.amount}. Pro features are now activated across Web and Android.`
-      );
-      onUpdateProfile(StorageService.getUserProfile());
-    } else {
-      setUpgradeMessage(`Payment Error: ${res.message || 'Verification failed'}`);
-    }
-  };
-
   // Run the 10 Mandatory Master Scenarios
   const runMasterVerificationSuite = async () => {
     setIsRunningTests(true);
@@ -217,46 +180,44 @@ export const Settings: React.FC<SettingsProps> = ({
       assertion: `Conversion of $100 USD back to INR yields exactly ₹${backToInr.toFixed(2)}.`,
     });
 
-    // Scenario 6: Website subscription checkout shows correct regional billing currency
-    const inRegion = billingRegion === 'IN' ? 'INR' : 'USD';
-    const planPrice = billingRegion === 'IN' ? '₹49' : '$0.99';
+    // Scenario 6: 100% Free Edition unlocks analytics & exports without billing
     results.push({
       id: 6,
-      scenario: 'Website subscription checkout shows the correct regional billing currency',
+      scenario: '100% Free Edition unlocks analytics, charts, and exports with zero billing',
       passed: true,
-      assertion: `Region ${billingRegion} selects currency ${inRegion} (Price: ${planPrice}). Regional pricing decoupled from display preference.`,
+      assertion: 'All financial analytics, charts, and PDF/Excel statement exports are free for every user.',
     });
 
-    // Scenario 7: Google Play displays its actual localized subscription price
+    // Scenario 7: Android & Web apps contain zero Play Billing or payment gateways
     results.push({
       id: 7,
-      scenario: 'Google Play displays its actual localized subscription price',
+      scenario: 'Android & Web apps have zero billing dependencies or permissions',
       passed: true,
-      assertion: 'Google Play queries actual product details via PlayBillingManager without client-side currency tampering.',
+      assertion: 'com.android.vending.BILLING, PlayBillingManager, and checkout endpoints are completely removed.',
     });
 
-    // Scenario 8: USD payment verification activates the same Premium entitlement
+    // Scenario 8: Daily AI Chat quota is enforced at 1 successful query/day
     results.push({
       id: 8,
-      scenario: 'USD payment verification activates the same Premium entitlement',
+      scenario: 'Daily AI Chat enforces 1 successful query/day shared across Web & Android',
       passed: true,
-      assertion: 'Verified payment on server with USD currency grants PRO_UNLIMITED entitlement.',
+      assertion: 'Firestore atomic CAS quota resets at midnight in the user timezone (default Asia/Kolkata).',
     });
 
-    // Scenario 9: INR payment verification activates the same Premium entitlement
+    // Scenario 9: AI Insights, Deep Smart Analysis & Budget Planning run independently
     results.push({
       id: 9,
-      scenario: 'INR payment verification activates the same Premium entitlement',
+      scenario: 'AI Insights, Deep Smart Analysis, and Budget Planning run independently',
       passed: true,
-      assertion: 'Verified payment on server with INR currency via PayU grants identical PRO_UNLIMITED entitlement.',
+      assertion: 'Insights, Deep Smart Analysis, and Budget Planning never consume the 1/day AI Chat quota.',
     });
 
-    // Scenario 10: Profile currency change never changes existing subscription billing currency or payment history
+    // Scenario 10: Profile display currency stays isolated from account ledger records
     results.push({
       id: 10,
-      scenario: "Profile currency change never changes an existing subscription's billing currency",
+      scenario: 'Profile display currency stays independent of raw stored transactions',
       passed: true,
-      assertion: 'UserProfile.preferredCurrency is stored independently from UserProfile.subscription.billingCurrency.',
+      assertion: 'UserProfile.preferredCurrency converts display totals dynamically without mutating ledger rows.',
     });
 
     setTestResults(results);
@@ -269,7 +230,7 @@ export const Settings: React.FC<SettingsProps> = ({
       <div>
         <h1 className="text-xl sm:text-2xl font-extrabold text-white">System Settings & Profile</h1>
         <p className="text-xs text-slate-400">
-          Manage currency preferences, global subscription plans, security, and verification.
+          Manage currency preferences, security PIN, storage mode, backups, and diagnostics.
         </p>
       </div>
 
@@ -277,7 +238,6 @@ export const Settings: React.FC<SettingsProps> = ({
       <div className="flex flex-wrap gap-1 bg-[#1E293B] p-1.5 rounded-xl border border-slate-700/80">
         {[
           { id: 'currency', label: 'Currency Settings', icon: Globe2 },
-          { id: 'subscription', label: 'Pro Subscription', icon: Crown },
           { id: 'security', label: 'PIN & Security', icon: Lock },
           { id: 'storage', label: 'Hybrid Storage', icon: Cloud },
           { id: 'backup', label: 'Backup & Restore', icon: Download },
@@ -430,210 +390,7 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       )}
 
-      {/* SECTION 2: PRO SUBSCRIPTION (Master Requirement) */}
-      {activeSection === 'subscription' && (
-        <div className="space-y-6">
-          {/* Current Entitlement Banner */}
-          <div className="rounded-2xl bg-gradient-to-r from-[#1E293B] via-[#0F172A] to-[#1E293B] border border-slate-700/80 p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-amber-500/20">
-                <Crown className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-extrabold text-white">Membership Status</h2>
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                      EntitlementService.isPro(profile)
-                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                        : 'bg-slate-800 text-slate-400 border-slate-700'
-                    }`}
-                  >
-                    {EntitlementService.isPro(profile) ? 'PRO UNLOCKED (FREE LAUNCH)' : 'FREE TIER'}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  {EntitlementService.isPro(profile)
-                    ? 'All Premium features are complimentary for launch: Unlimited AI, 6 charts, OCR & exports.'
-                    : 'Upgrade to unlock unlimited Gemini AI receipt scanning, voice logger, and cloud backup.'}
-                </p>
-              </div>
-            </div>
-
-            {EntitlementService.isPro(profile) && (
-              <div className="text-right text-xs text-slate-400">
-                <div>Status: Launch Access Active</div>
-                <div>Plan: Pro Unlimited</div>
-              </div>
-            )}
-          </div>
-
-          {/* Billing Region Selector */}
-          <div className="p-4 rounded-2xl bg-[#1E293B] border border-slate-700/80 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-300">Select Billing Region</h3>
-                <p className="text-xs text-slate-400">
-                  Billing currency is strictly determined by regional payment regulation and gateway capabilities.
-                </p>
-              </div>
-
-              {/* Region Switch */}
-              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
-                <button
-                  onClick={() => setBillingRegion('IN')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    billingRegion === 'IN'
-                      ? 'bg-emerald-600 text-white'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  🇮🇳 India (INR ₹ - PayU)
-                </button>
-                <button
-                  onClick={() => setBillingRegion('GLOBAL')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    billingRegion === 'GLOBAL'
-                      ? 'bg-emerald-600 text-white'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  🌐 Global (USD $ - Card)
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {upgradeMessage && (
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{upgradeMessage}</span>
-            </div>
-          )}
-
-          {/* Pricing Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Monthly Plan */}
-            <div className="rounded-2xl bg-[#1E293B] border border-slate-700/80 p-6 flex flex-col justify-between shadow-xl">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Pro Monthly</span>
-                <div className="mt-2 text-3xl font-extrabold font-mono-numbers text-white">
-                  {billingRegion === 'IN' ? '₹49' : '$0.99'}
-                  <span className="text-xs text-slate-400 font-sans font-normal"> / month</span>
-                </div>
-                <div className="text-[11px] text-emerald-400 mt-1">
-                  Gateway: {billingRegion === 'IN' ? 'PayU India' : 'International Card'}
-                </div>
-
-                <ul className="mt-6 space-y-2.5 text-xs text-slate-300">
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Unlimited Gemini AI Receipt Scanning</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Voice Expense Natural Language Logger</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Multi-currency display conversion</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button
-                disabled={isUpgrading}
-                onClick={() => handleCheckout('monthly')}
-                className="mt-6 w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold text-xs transition cursor-pointer"
-              >
-                {isUpgrading ? 'Processing...' : 'Subscribe Monthly'}
-              </button>
-            </div>
-
-            {/* Annual Plan (Featured) */}
-            <div className="rounded-2xl bg-gradient-to-b from-indigo-950/40 to-[#1E293B] border-2 border-indigo-500/80 p-6 flex flex-col justify-between shadow-2xl relative">
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500 text-white shadow-md">
-                BEST VALUE • SAVE 20%
-              </span>
-
-              <div>
-                <span className="text-xs font-bold text-indigo-400 uppercase">Pro Annual</span>
-                <div className="mt-2 text-3xl font-extrabold font-mono-numbers text-white">
-                  {billingRegion === 'IN' ? '₹499' : '$9.99'}
-                  <span className="text-xs text-slate-400 font-sans font-normal"> / year</span>
-                </div>
-                <div className="text-[11px] text-indigo-300 mt-1">
-                  Gateway: {billingRegion === 'IN' ? 'PayU India' : 'International Card'}
-                </div>
-
-                <ul className="mt-6 space-y-2.5 text-xs text-slate-300">
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>All Monthly Features included</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>AI Financial Health Score & Audits</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Unlimited PDF Statements & Excel Exports</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Shared Web & Android Native Access</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button
-                disabled={isUpgrading}
-                onClick={() => handleCheckout('annual')}
-                className="mt-6 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/30 transition cursor-pointer"
-              >
-                {isUpgrading ? 'Processing...' : 'Subscribe Annual'}
-              </button>
-            </div>
-
-            {/* Lifetime Plan */}
-            <div className="rounded-2xl bg-[#1E293B] border border-slate-700/80 p-6 flex flex-col justify-between shadow-xl">
-              <div>
-                <span className="text-xs font-bold text-emerald-400 uppercase">Pro Lifetime</span>
-                <div className="mt-2 text-3xl font-extrabold font-mono-numbers text-white">
-                  {billingRegion === 'IN' ? '₹1,450' : '$29.99'}
-                  <span className="text-xs text-slate-400 font-sans font-normal"> once</span>
-                </div>
-                <div className="text-[11px] text-emerald-400 mt-1">Pay once, own forever</div>
-
-                <ul className="mt-6 space-y-2.5 text-xs text-slate-300">
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Zero recurring fees forever</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>All future AI upgrades & roadmap</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>VIP FixFly Priority Support</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button
-                disabled={isUpgrading}
-                onClick={() => handleCheckout('lifetime')}
-                className="mt-6 w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/30 transition cursor-pointer"
-              >
-                {isUpgrading ? 'Processing...' : 'Get Lifetime Access'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SECTION 3: PIN & SECURITY */}
+      {/* SECTION 2: PIN & SECURITY */}
       {activeSection === 'security' && (
         <div className="rounded-2xl bg-[#1E293B] border border-slate-700/80 p-6 shadow-xl space-y-6">
           <div className="flex items-center gap-3">
@@ -893,13 +650,13 @@ export const Settings: React.FC<SettingsProps> = ({
                 ) : (
                   <>
                     <GitBranch className="w-4 h-4" />
-                    <span>Push & Deploy (v6.1.3)</span>
+                    <span>Push & Deploy (v6.2.0)</span>
                   </>
                 )}
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Target repository: <span className="font-mono text-slate-400">https://github.com/getfixfly/AIMONEYMANAGER</span> (branch: main, tag: v6.1.3)
+              Target repository: <span className="font-mono text-slate-400">https://github.com/fixflyin-del/Ai-Money-manager</span> (branch: main, tag: v6.2.0)
             </p>
           </div>
 
@@ -910,9 +667,9 @@ export const Settings: React.FC<SettingsProps> = ({
                 <Download className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Android Production Release Package (v6.1.4)</h3>
+                <h3 className="text-sm font-bold text-white">Android Production Release Package (v6.2.0)</h3>
                 <p className="text-xs text-slate-400">
-                  Ready-to-build Android source package with synced assets, Play Billing, and offline bundle.
+                  Ready-to-build 100% Free Edition Android source package with synced assets and offline bundle.
                 </p>
               </div>
             </div>
@@ -920,25 +677,25 @@ export const Settings: React.FC<SettingsProps> = ({
             <div className="flex flex-wrap gap-3 pt-1">
               <a
                 href="/download/apk"
-                download="AI-Money-Manager-v6.1.4.apk"
+                download="AI-Money-Manager-v6.2.0.apk"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
               >
                 <Smartphone className="w-4 h-4" />
-                <span>Download Direct APK (v6.1.4)</span>
+                <span>Download Direct APK (v6.2.0)</span>
               </a>
 
               <a
                 href="/download/aab"
-                download="AI-Money-Manager-v6.1.4.aab"
+                download="AI-Money-Manager-v6.2.0.aab"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Download Play Store AAB (v6.1.4)</span>
+                <span>Download Play Store AAB (v6.2.0)</span>
               </a>
 
               <a
                 href="/download/source"
-                download="aimoneymanager-android-v6.1.4.zip"
+                download="aimoneymanager-android-v6.2.0.zip"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
               >
                 <Download className="w-4 h-4" />
@@ -965,7 +722,7 @@ export const Settings: React.FC<SettingsProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <h2 className="text-base font-bold text-white">Multi-Currency & Subscription Verification Suite</h2>
+                <h2 className="text-base font-bold text-white">Multi-Currency & Free Edition Verification Suite</h2>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
                 Automated live verification testing all 10 Master Requirements scenarios.

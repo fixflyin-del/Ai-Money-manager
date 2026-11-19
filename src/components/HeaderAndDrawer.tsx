@@ -14,17 +14,13 @@ import {
   Brain,
   Mail,
   CloudDownload,
-  Crown,
   ChevronRight,
-  Lock,
   Monitor,
   ExternalLink,
-  Globe,
   CheckCircle2,
 } from 'lucide-react';
 import { UserProfile } from '../types/finance';
 import { formatCurrency } from '../services/currencyService';
-import { EntitlementService } from '../services/entitlementService';
 
 export type NavTab = 'home' | 'manage' | 'add' | 'analysis' | 'ai_manager' | 'profile' | 'backup' | 'admin';
 
@@ -36,7 +32,6 @@ interface HeaderAndDrawerProps {
   onTabChange: (tab: NavTab) => void;
   isDrawerOpen: boolean;
   setIsDrawerOpen: (open: boolean) => void;
-  onOpenUpgrade: () => void;
   onSelectAllAccounts?: () => void;
   isAllAccountsActive?: boolean;
 }
@@ -48,12 +43,10 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
   onTabChange,
   isDrawerOpen,
   setIsDrawerOpen,
-  onOpenUpgrade,
   onSelectAllAccounts,
   isAllAccountsActive = false,
 }) => {
   const prefCurrency = profile.preferredCurrency;
-  const isPro = EntitlementService.isPro(profile);
   
   // Real authentication check
   const isLoggedIn = Boolean(profile.firebaseUid && profile.firebaseUid !== 'guest' && profile.storageMode === 'cloud');
@@ -221,10 +214,9 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
                     <div>
                       <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                         <span>Analysis</span>
-                        {!isPro && <Lock className="w-3 h-3 text-amber-500" />}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {isPro ? 'Interactive charts & category drilldowns' : 'Limited free preview · Full access in Pro'}
+                        Interactive charts & category drilldowns
                       </div>
                     </div>
                   </div>
@@ -322,7 +314,7 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1 font-semibold">
                 <span>AI Money Manager</span>
-                <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">v6.1.4</span>
+                <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">v6.2.0</span>
               </div>
               <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
                 <span>Fixfly Innovations</span>

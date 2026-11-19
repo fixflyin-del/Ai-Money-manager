@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Build;
 import android.util.Log;
@@ -21,6 +22,11 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -43,7 +49,6 @@ public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private WebViewAssetLoader assetLoader;
-    private PlayBillingManager billingManager;
     private MoneyFlowBridge bridge;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -84,8 +89,7 @@ public class MainActivity extends AppCompatActivity {
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
-        billingManager = new PlayBillingManager(this, webView);
-        bridge = new MoneyFlowBridge(this, webView, billingManager);
+        bridge = new MoneyFlowBridge(this, webView);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -238,7 +242,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        if (billingManager != null) billingManager.destroy();
         super.onDestroy();
     }
 }

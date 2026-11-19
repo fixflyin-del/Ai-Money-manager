@@ -14,9 +14,9 @@ if [ -z "$TOKEN" ]; then
   exit 1
 fi
 
-REMOTE_URL="https://${TOKEN}@github.com/getfixfly/AIMONEYMANAGER.git"
+REMOTE_URL="https://${TOKEN}@github.com/fixflyin-del/Ai-Money-manager.git"
 
-echo "🚀 Pushing release v6.1.4 to https://github.com/getfixfly/AIMONEYMANAGER..."
+echo "🚀 Pushing release v6.2.0 to https://github.com/fixflyin-del/Ai-Money-manager..."
 git push "$REMOTE_URL" main:main --force
 git push "$REMOTE_URL" --tags --force
 echo "✅ Push successful! GitHub Actions will automatically build signed APK and AAB release artifacts."

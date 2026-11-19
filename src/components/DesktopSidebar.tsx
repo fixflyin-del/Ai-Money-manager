@@ -12,10 +12,6 @@ import {
   User,
   CloudDownload,
   Mail,
-  Crown,
-  Lock,
-  Sparkles,
-  ChevronRight,
   Sun,
   Moon,
   Wallet,
@@ -26,7 +22,6 @@ import {
 import { NavTab } from './HeaderAndDrawer';
 import { UserProfile } from '../types/finance';
 import { formatCurrency } from '../services/currencyService';
-import { EntitlementService } from '../services/entitlementService';
 
 interface DesktopSidebarProps {
   profile: UserProfile;
@@ -34,7 +29,6 @@ interface DesktopSidebarProps {
   accountCount: number;
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
-  onOpenUpgrade: () => void;
   onToggleDarkMode: () => void;
   onSelectAllAccounts?: () => void;
   isAllAccountsActive?: boolean;
@@ -46,13 +40,11 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   accountCount,
   activeTab,
   onTabChange,
-  onOpenUpgrade,
   onToggleDarkMode,
   onSelectAllAccounts,
   isAllAccountsActive = false,
 }) => {
   const prefCurrency = profile.preferredCurrency;
-  const isPro = EntitlementService.isPro(profile);
   const isLoggedIn = Boolean(
     profile.firebaseUid &&
     profile.firebaseUid !== 'guest' &&
@@ -68,12 +60,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const initialLetter = isLoggedIn ? displayName.charAt(0).toUpperCase() : 'AI';
 
   const navItems = [
-    { id: 'home' as NavTab, label: 'Home / Dashboard', icon: Home, isProRequired: false },
-    { id: 'manage' as NavTab, label: 'Manage Accounts & Categories', icon: Layers, isProRequired: false },
-    { id: 'analysis' as NavTab, label: 'Financial Analysis', icon: BarChart3, isProRequired: false, lockNotice: !isPro },
-    { id: 'ai_manager' as NavTab, label: 'AI Money Manager', icon: Brain, isProRequired: false, lockNotice: !isPro },
-    { id: 'profile' as NavTab, label: 'Profile & Multi-Currency', icon: User, isProRequired: false },
-    { id: 'backup' as NavTab, label: 'Cloud & Local Backup', icon: CloudDownload, isProRequired: false },
+    { id: 'home' as NavTab, label: 'Home / Dashboard', icon: Home },
+    { id: 'manage' as NavTab, label: 'Manage Accounts & Categories', icon: Layers },
+    { id: 'analysis' as NavTab, label: 'Financial Analysis', icon: BarChart3 },
+    { id: 'ai_manager' as NavTab, label: 'AI Money Manager', icon: Brain },
+    { id: 'profile' as NavTab, label: 'Profile & Multi-Currency', icon: User },
+    { id: 'backup' as NavTab, label: 'Cloud & Local Backup', icon: CloudDownload },
   ];
 
   return (
@@ -137,9 +129,6 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                   <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                   <span className="truncate">{item.label}</span>
                 </div>
-                {item.lockNotice && !isActive && (
-                  <Lock className="w-3 h-3 text-amber-500 shrink-0" />
-                )}
               </button>
             );
           })}

@@ -33,7 +33,6 @@ interface AnalysisScreenProps {
   profile: UserProfile;
   accounts: Account[];
   transactions: Transaction[];
-  onOpenUpgrade?: () => void;
 }
 
 export type TimeFilterPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'all';

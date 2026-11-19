@@ -11,12 +11,7 @@ declare global {
       openExternalUrl: (url: string) => void;
       openAuthCustomTab: (url: string) => void;
       saveBase64File: (filename: string, mimeType: string, base64: string) => void;
-      launchPlayBillingPurchase: (reqId: string, productId: string, type: string, accountId: string) => void;
-      restorePlayBillingPurchases: (reqId: string) => void;
-      queryProducts: (reqId: string) => void;
     };
-    onPlayBillingPurchaseResult?: (resultJson: string) => void;
-    onPlayProductsResult?: (productsJson: string) => void;
   }
 }
 
@@ -86,31 +81,5 @@ export class AndroidBridge {
         console.error('Failed to trigger browser download:', err);
       }
     }
-  }
-
-  static launchPlayBillingPurchase(productId: string, type: 'subs' | 'inapp', userId: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (!this.isAndroid() || !window.MoneyFlowNative?.launchPlayBillingPurchase) {
-        reject(new Error('Google Play Billing is only available in the FixFly Android App.'));
-        return;
-      }
-
-      const reqId = `play_req_${Date.now()}`;
-
-      // Register listener
-      window.onPlayBillingPurchaseResult = (jsonStr: string) => {
-        try {
-          const res = JSON.parse(jsonStr);
-          if (res.reqId === reqId) {
-            if (res.success) resolve(res);
-            else reject(new Error(res.message || 'Google Play purchase cancelled'));
-          }
-        } catch (e) {
-          reject(e);
-        }
-      };
-
-      window.MoneyFlowNative.launchPlayBillingPurchase(reqId, productId, type, userId);
-    });
   }
 }

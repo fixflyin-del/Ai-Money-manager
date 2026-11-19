@@ -83,14 +83,14 @@ export class CloudFirestoreService {
           categoriesSeeded: Boolean(data.categoriesSeeded),
           timezone: data.timezone || undefined,
           subscription: {
-            isPro: Boolean(data.isPro),
-            planName: data.planName || 'Free Plan',
+            isPro: false,
+            planName: data.planName || '100% Free Edition',
             billingRegion: data.billingRegion || 'IN',
             billingCurrency: data.billingCurrency || 'INR',
-            amountPaid: data.amountPaid || 0,
-            gateway: data.gateway || 'PayU',
+            amountPaid: 0,
+            gateway: data.gateway === 'None' ? 'None' : 'Free',
             expiryDate: data.expiryDate || undefined,
-            status: data.isPro ? 'active' : 'cancelled',
+            status: 'active',
           },
         };
       }
@@ -132,14 +132,14 @@ export class CloudFirestoreService {
             categoriesSeeded: Boolean(data.categoriesSeeded),
             timezone: data.timezone || undefined,
             subscription: {
-              isPro: Boolean(data.isPro),
-              planName: data.planName || 'Free Plan',
+              isPro: false,
+              planName: data.planName || '100% Free Edition',
               billingRegion: data.billingRegion || 'IN',
               billingCurrency: data.billingCurrency || 'INR',
-              amountPaid: data.amountPaid || 0,
-              gateway: data.gateway || 'PayU',
+              amountPaid: 0,
+              gateway: data.gateway === 'None' ? 'None' : 'Free',
               expiryDate: data.expiryDate || undefined,
-              status: data.isPro ? 'active' : 'cancelled',
+              status: 'active',
             },
           });
         } else {

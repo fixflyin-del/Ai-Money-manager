@@ -20,7 +20,7 @@ echo "📝 Accepting Android SDK licenses..."
 yes | sdkmanager --licenses > /dev/null 2>&1 || true
 
 echo "📦 Installing Android SDK platform-tools and platform..."
-# AGP 8 supports API 34/35
-sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+# Target Android API 36 (Play Store requirement)
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
 echo "✅ Android SDK ready at $ANDROID_HOME"

@@ -14,11 +14,9 @@ import {
   Sparkles,
   ShieldCheck,
   Globe2,
-  Crown,
 } from 'lucide-react';
-import { CurrencyCode, UserProfile } from '../types/finance';
+import { UserProfile } from '../types/finance';
 import { getCurrencyInfo } from '../services/currencyService';
-import { EntitlementService } from '../services/entitlementService';
 
 export type NavTab = 'dashboard' | 'transactions' | 'analytics' | 'budgets' | 'settings';
 
@@ -27,7 +25,6 @@ interface NavigationProps {
   onTabChange: (tab: NavTab) => void;
   onQuickAdd: () => void;
   onOpenAiAdvisor: () => void;
-  onOpenUpgrade: () => void;
   profile: UserProfile;
   exchangeRateLastUpdated: string;
 }
@@ -37,7 +34,6 @@ export const Navigation: React.FC<NavigationProps> = ({
   onTabChange,
   onQuickAdd,
   onOpenAiAdvisor,
-  onOpenUpgrade,
   profile,
 }) => {
   const currencyInfo = getCurrencyInfo(profile.preferredCurrency);
@@ -67,18 +63,9 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <h1 className="font-extrabold text-base sm:text-lg tracking-tight text-white flex items-center gap-1.5">
                   AI Money Manager
                 </h1>
-                {EntitlementService.isPro(profile) ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-500/20 to-indigo-500/20 text-amber-300 border border-amber-500/30">
-                    <Crown className="w-3 h-3 text-amber-400" /> PRO
-                  </span>
-                ) : (
-                  <button
-                    onClick={onOpenUpgrade}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/40 transition cursor-pointer"
-                  >
-                    <Sparkles className="w-3 h-3" /> Get Pro
-                  </button>
-                )}
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  100% Free
+                </span>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <span className="text-emerald-400 font-medium">FixFly</span>

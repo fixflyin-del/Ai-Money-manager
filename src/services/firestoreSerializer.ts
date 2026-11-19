@@ -221,11 +221,11 @@ export function serializeUserProfileForFirestore(
     biometricsEnabled: Boolean(profile.biometricsEnabled),
     autoLockMinutes: Number(profile.autoLockMinutes) || 5,
     isPro: Boolean(profile.subscription?.isPro),
-    planName: profile.subscription?.planName || 'Free Plan',
+    planName: profile.subscription?.planName || '100% Free Edition',
     billingRegion: profile.subscription?.billingRegion || 'IN',
     billingCurrency: profile.subscription?.billingCurrency || 'INR',
     amountPaid: Number(profile.subscription?.amountPaid) || 0,
-    gateway: profile.subscription?.gateway || 'PayU',
+    gateway: profile.subscription?.gateway || 'Free',
     categoriesSeeded: Boolean(profile.categoriesSeeded),
     updatedAt: new Date().toISOString(),
   };

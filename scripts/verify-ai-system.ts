@@ -187,25 +187,26 @@ async function runUnitAndScenarioTests() {
         isPro: true,
         billingRegion: 'IN',
         billingCurrency: 'INR',
-        amountPaid: 49,
-        gateway: 'PayU',
+        amountPaid: 0,
+        gateway: 'Free',
         status: 'active',
       },
-    } as any) === true,
-    'Client EntitlementService detects active Pro chat entitlement'
+    } as any) === false,
+    'Client EntitlementService keeps 100% Free Edition users on shared 1/day AI Chat quota'
   );
   check(
-    EntitlementService.hasPaidProChatEntitlement({
+    EntitlementService.isPro({
       subscription: {
         isPro: false,
         billingRegion: 'IN',
         billingCurrency: 'INR',
         amountPaid: 0,
-        gateway: 'PayU',
-        status: 'expired',
+        gateway: 'Free',
+        status: 'active',
       },
-    } as any) === false,
-    'Client EntitlementService restricts Free user to 1/day AI Chat'
+    } as any) === true &&
+      EntitlementService.canAccess({} as any, 'advanced_charts') === true,
+    'Client EntitlementService unlocks all analytics & charts for 100% Free Edition'
   );
 
   const proSlot1 = await AiQuotaService.acquireChatSlot(store, proUser, 'Asia/Kolkata', true, fixedNow);

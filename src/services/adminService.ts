@@ -12,37 +12,17 @@ export interface AdminUser {
   storageMode: 'cloud' | 'local';
   registeredAt: string;
   lastActive: string;
-  isPro: boolean;
-  planName?: string;
-  gateway?: 'Google Play Billing' | 'PayU' | 'International Card' | 'Admin Granted';
-  amountPaid: number;
+  planName: string;
   currency: string;
   accountsCount: number;
   transactionsCount: number;
-}
-
-export interface AdminSubscriptionRecord {
-  id: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  planId: 'monthly' | 'annual' | 'lifetime';
-  planName: string;
-  amount: number;
-  currency: string;
-  gateway: 'Google Play Billing' | 'PayU' | 'International Card' | 'Admin Granted';
-  orderId: string;
-  transactionId: string;
-  status: 'active' | 'expired' | 'refunded';
-  purchaseDate: string;
-  expiryDate?: string;
 }
 
 export interface PushNotificationRecord {
   id: string;
   title: string;
   body: string;
-  targetAudience: 'all' | 'pro_only' | 'free_only' | 'android_only' | 'web_only';
+  targetAudience: 'all' | 'free_only' | 'android_only' | 'web_only';
   sentAt: string;
   deliveredCount: number;
   openRate: string;
@@ -50,7 +30,6 @@ export interface PushNotificationRecord {
 }
 
 const KEY_ADMIN_USERS = 'aimoney_admin_users';
-const KEY_ADMIN_SUBS = 'aimoney_admin_subscriptions';
 const KEY_ADMIN_PUSH = 'aimoney_admin_push_history';
 
 export class AdminService {
@@ -65,10 +44,7 @@ export class AdminService {
         storageMode: 'cloud',
         registeredAt: '2026-10-15',
         lastActive: 'Just now',
-        isPro: true,
-        planName: 'Pro Annual',
-        gateway: 'Google Play Billing',
-        amountPaid: 499,
+        planName: '100% Free Edition',
         currency: 'INR',
         accountsCount: 3,
         transactionsCount: 42,
@@ -82,10 +58,7 @@ export class AdminService {
         storageMode: 'cloud',
         registeredAt: '2026-10-28',
         lastActive: '2 hours ago',
-        isPro: true,
-        planName: 'Pro Monthly',
-        gateway: 'PayU',
-        amountPaid: 49,
+        planName: '100% Free Edition',
         currency: 'INR',
         accountsCount: 2,
         transactionsCount: 18,
@@ -98,10 +71,7 @@ export class AdminService {
         storageMode: 'cloud',
         registeredAt: '2026-11-01',
         lastActive: 'Yesterday',
-        isPro: true,
-        planName: 'Pro Lifetime',
-        gateway: 'International Card',
-        amountPaid: 29.99,
+        planName: '100% Free Edition',
         currency: 'USD',
         accountsCount: 4,
         transactionsCount: 56,
@@ -115,8 +85,7 @@ export class AdminService {
         storageMode: 'local',
         registeredAt: '2026-11-03',
         lastActive: '3 days ago',
-        isPro: false,
-        amountPaid: 0,
+        planName: '100% Free Edition',
         currency: 'INR',
         accountsCount: 1,
         transactionsCount: 8,
@@ -129,63 +98,10 @@ export class AdminService {
         storageMode: 'cloud',
         registeredAt: '2026-11-05',
         lastActive: '5 hours ago',
-        isPro: false,
-        amountPaid: 0,
+        planName: '100% Free Edition',
         currency: 'USD',
         accountsCount: 2,
         transactionsCount: 12,
-      },
-    ];
-  }
-
-  private static getInitialSubscriptions(): AdminSubscriptionRecord[] {
-    return [
-      {
-        id: 'sub_001',
-        userId: 'usr_001',
-        userName: 'Arman Khan',
-        userEmail: 'fixfly.in@gmail.com',
-        planId: 'annual',
-        planName: 'Pro Annual',
-        amount: 499,
-        currency: 'INR',
-        gateway: 'Google Play Billing',
-        orderId: 'GPA.3382-9102-4821-99210',
-        transactionId: 'play_tx_992104812',
-        status: 'active',
-        purchaseDate: '2026-10-15',
-        expiryDate: '2027-10-15',
-      },
-      {
-        id: 'sub_002',
-        userId: 'usr_002',
-        userName: 'Rahul Sharma',
-        userEmail: 'rahul.s@example.com',
-        planId: 'monthly',
-        planName: 'Pro Monthly',
-        amount: 49,
-        currency: 'INR',
-        gateway: 'PayU',
-        orderId: 'payu_ord_8829102',
-        transactionId: 'payu_tx_7739182',
-        status: 'active',
-        purchaseDate: '2026-10-28',
-        expiryDate: '2026-11-28',
-      },
-      {
-        id: 'sub_003',
-        userId: 'usr_003',
-        userName: 'Sarah Jenkins',
-        userEmail: 'sarah.j@gmail.com',
-        planId: 'lifetime',
-        planName: 'Pro Lifetime',
-        amount: 29.99,
-        currency: 'USD',
-        gateway: 'International Card',
-        orderId: 'card_ord_449102',
-        transactionId: 'card_tx_558190',
-        status: 'active',
-        purchaseDate: '2026-11-01',
       },
     ];
   }
@@ -194,8 +110,8 @@ export class AdminService {
     return [
       {
         id: 'push_001',
-        title: 'New: Gemini AI Receipt Scanner 🚀',
-        body: 'Scan store receipts instantly with camera or gallery! Tap to try now.',
+        title: 'AI Insights & Smart Budget Planning',
+        body: 'Explore Deep Smart Analysis and category budgets in AI Money Manager v6.2.0.',
         targetAudience: 'all',
         sentAt: '2026-11-06 10:30 AM',
         deliveredCount: 4280,
@@ -205,7 +121,7 @@ export class AdminService {
       {
         id: 'push_002',
         title: 'Monthly Budget Reminder 🔔',
-        body: 'Check your November savings velocity and category limits in AI Money Manager.',
+        body: 'Check your monthly savings velocity and category limits in AI Money Manager.',
         targetAudience: 'free_only',
         sentAt: '2026-11-01 09:00 AM',
         deliveredCount: 3150,
@@ -225,16 +141,6 @@ export class AdminService {
     return initial;
   }
 
-  static getSubscriptions(): AdminSubscriptionRecord[] {
-    try {
-      const raw = localStorage.getItem(KEY_ADMIN_SUBS);
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    const initial = this.getInitialSubscriptions();
-    localStorage.setItem(KEY_ADMIN_SUBS, JSON.stringify(initial));
-    return initial;
-  }
-
   static getPushHistory(): PushNotificationRecord[] {
     try {
       const raw = localStorage.getItem(KEY_ADMIN_PUSH);
@@ -243,23 +149,6 @@ export class AdminService {
     const initial = this.getInitialPushHistory();
     localStorage.setItem(KEY_ADMIN_PUSH, JSON.stringify(initial));
     return initial;
-  }
-
-  static toggleUserPro(userId: string): AdminUser[] {
-    const users = this.getUsers().map((u) => {
-      if (u.id === userId) {
-        const newPro = !u.isPro;
-        return {
-          ...u,
-          isPro: newPro,
-          planName: newPro ? 'Pro Admin Lifetime' : undefined,
-          gateway: newPro ? ('Admin Granted' as const) : undefined,
-        };
-      }
-      return u;
-    });
-    localStorage.setItem(KEY_ADMIN_USERS, JSON.stringify(users));
-    return users;
   }
 
   static sendPushNotification(

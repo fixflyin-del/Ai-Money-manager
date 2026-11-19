@@ -66,11 +66,12 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   dailyAiQuestionsRemaining: 1,
   subscription: {
     isPro: false,
+    planName: '100% Free Edition',
     billingRegion: 'IN',
     billingCurrency: 'INR',
     amountPaid: 0,
-    gateway: 'PayU',
-    status: 'expired',
+    gateway: 'Free',
+    status: 'active',
   },
 };
 
@@ -510,7 +511,7 @@ export class StorageService {
       goals: this.getGoals(),
       recurring: this.getRecurringBills(),
       exportedAt: new Date().toISOString(),
-      version: '6.1.1',
+      version: '6.2.0',
     };
     return JSON.stringify(backup, null, 2);
   }

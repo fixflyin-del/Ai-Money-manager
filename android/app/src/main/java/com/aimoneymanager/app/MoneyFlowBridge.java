@@ -22,12 +22,10 @@ public class MoneyFlowBridge {
     private static final String TAG = "MoneyFlowBridge";
     private final Activity activity;
     private final WebView webView;
-    private final PlayBillingManager billingManager;
 
-    public MoneyFlowBridge(Activity activity, WebView webView, PlayBillingManager billingManager) {
+    public MoneyFlowBridge(Activity activity, WebView webView) {
         this.activity = activity;
         this.webView = webView;
-        this.billingManager = billingManager;
     }
 
     @JavascriptInterface
@@ -107,26 +105,5 @@ public class MoneyFlowBridge {
                 Toast.makeText(activity, "Failed to save file: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
-    }
-
-    @JavascriptInterface
-    public void launchPlayBillingPurchase(String reqId, String productId, String type, String accountId) {
-        if (billingManager != null) {
-            billingManager.launchPurchase(reqId, productId, type, accountId);
-        }
-    }
-
-    @JavascriptInterface
-    public void restorePlayBillingPurchases(String reqId) {
-        if (billingManager != null) {
-            billingManager.restorePurchases(reqId);
-        }
-    }
-
-    @JavascriptInterface
-    public void queryProducts(String reqId) {
-        if (billingManager != null) {
-            billingManager.queryProducts(reqId);
-        }
     }
 }

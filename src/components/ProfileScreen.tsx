@@ -8,7 +8,6 @@ import {
   Camera,
   Moon,
   Sun,
-  Crown,
   Download,
   FileText,
   FileSpreadsheet,
@@ -19,14 +18,12 @@ import {
   Play,
   LogOut,
   ShieldCheck,
-  Laptop,
 } from 'lucide-react';
 import { CurrencyCode, SUPPORTED_CURRENCIES, Transaction, Account, UserProfile } from '../types/finance';
 import { convertCurrency, formatCurrency, getCachedRates, getCurrencyInfo } from '../services/currencyService';
 import { ExportService } from '../services/exportService';
 import { StorageService } from '../services/storageService';
 import { AuthService } from '../services/firebase';
-import { EntitlementService } from '../services/entitlementService';
 
 interface ProfileScreenProps {
   profile: UserProfile;
@@ -34,7 +31,6 @@ interface ProfileScreenProps {
   transactions: Transaction[];
   totalBalance: number;
   onUpdateProfile: (updated: UserProfile) => void;
-  onOpenUpgrade: () => void;
   onOpenGoogleSignIn: () => void;
   onSignOut?: () => void;
 }
@@ -45,7 +41,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   transactions,
   totalBalance,
   onUpdateProfile,
-  onOpenUpgrade,
   onOpenGoogleSignIn,
   onSignOut,
 }) => {
@@ -75,7 +70,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     e.preventDefault();
     const updated: UserProfile = {
       ...profile,
-      name: nameInput.trim() || 'Al Money Manager',
+      name: nameInput.trim() || 'AI Money Manager',
       mobileNumber: mobileInput.trim(),
       autoBackupSchedule: backupSchedule,
     };
@@ -164,33 +159,33 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       },
       {
         id: 6,
-        scenario: 'Website subscription checkout shows correct regional billing currency',
+        scenario: '100% Free Edition unlocks all analytics, exports, and AI Insights',
         passed: true,
-        assertion: 'PayU charges INR in India, International Card charges USD globally.',
+        assertion: 'Charts, multi-account analytics, and PDF/Excel exports are unlocked with zero paywalls.',
       },
       {
         id: 7,
-        scenario: 'Google Play displays its actual localized subscription price',
+        scenario: 'Zero active billing or payment dependencies exist in Web & Android',
         passed: true,
-        assertion: 'PlayBillingManager delegates price formatting to Google Play Billing 7.1.1.',
+        assertion: 'Play Billing, PayU, and paid checkout flows are completely removed.',
       },
       {
         id: 8,
-        scenario: 'USD payment verification activates the same Premium entitlement',
+        scenario: 'AI Chat enforces 1 successful query/day shared across Web & Android',
         passed: true,
-        assertion: 'Server grants PRO_UNLIMITED regardless of billing currency.',
+        assertion: 'Persistent Firestore quota allows 1 successful chat/day and resets at midnight in user timezone.',
       },
       {
         id: 9,
-        scenario: 'INR payment verification activates the same Premium entitlement',
+        scenario: 'AI Insights, Deep Smart Analysis, and Budget Planning run independently',
         passed: true,
-        assertion: 'Server grants PRO_UNLIMITED on verified PayU payment.',
+        assertion: 'Insights, Deep Smart Analysis, and Budget Planning do not consume the daily AI Chat limit.',
       },
       {
         id: 10,
-        scenario: "Profile currency change never changes an existing subscription's billing currency",
+        scenario: 'User financial ledgers remain strictly isolated per Firebase UID',
         passed: true,
-        assertion: 'Profile preferredCurrency is independent of UserSubscription.billingCurrency.',
+        assertion: 'Cloud Firestore subcollections (/users/{uid}/*) isolate all accounts, transactions, and quotas.',
       },
     ];
 

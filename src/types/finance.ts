@@ -141,10 +141,10 @@ export interface UserSubscription {
   billingRegion: 'IN' | 'GLOBAL';
   billingCurrency: 'INR' | 'USD';
   amountPaid: number;
-  gateway: 'PayU' | 'International Card' | 'Google Play Billing';
+  gateway: 'Free' | 'None';
   transactionId?: string;
   purchaseDate?: string;
-  expiryDate?: string; // null or undefined for lifetime
+  expiryDate?: string;
   status: 'active' | 'cancelled' | 'expired';
 }
 
@@ -171,32 +171,6 @@ export interface UserProfile {
   timezone?: string;
   categoriesSeeded?: boolean;
   subscription: UserSubscription;
-}
-
-export interface SubscriptionPlanDefinition {
-  id: 'monthly' | 'annual' | 'lifetime';
-  name: string;
-  duration: string;
-  badge?: string;
-  features: string[];
-  pricing: {
-    IN: {
-      currency: 'INR';
-      symbol: '₹';
-      price: number;
-      displayPrice: string;
-      gateway: 'PayU';
-      gatewayProductId: string;
-    };
-    GLOBAL: {
-      currency: 'USD';
-      symbol: '$';
-      price: number;
-      displayPrice: string;
-      gateway: 'International Card';
-      gatewayProductId: string;
-    };
-  };
 }
 
 export interface FinancialHealthInsight {
