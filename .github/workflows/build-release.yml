@@ -59,7 +59,7 @@ jobs:
             echo "::error::PlayBillingManager.java must not exist in the free Android build."
             exit 1
           fi
-          if grep -RInE 'PlayBillingManager|com\.android\.billingclient|com\.android\.vending\.(BILLING|CHECK_LICENSE)|BillingClient|launchBillingFlow|queryPurchasesAsync' android/app/src/main android/app/build.gradle; then
+          if grep -RInE 'PlayBillingManager|com\.android\.billingclient|com\.android\.vending\.(BILLING|CHECK_LICENSE)|BillingClient|launchBillingFlow|queryPurchasesAsync' android/app/src/main/java android/app/src/main/AndroidManifest.xml android/app/build.gradle; then
             echo "::error::Google Play Billing reference detected in Android source."
             exit 1
           fi
