@@ -42,10 +42,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Use a non-edge-to-edge content layout. Let Android place the WebView
-        // below the status bar and above the navigation bar instead of relying
-        // on WebView CSS/padding to interpret system insets.
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+        // Android 15+ enforces edge-to-edge for apps targeting SDK 35+.
+        // Explicitly inset WebView content so web UI stays below system bars.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         getWindow().setStatusBarColor(Color.rgb(248, 250, 252));
         getWindow().setNavigationBarColor(Color.rgb(248, 250, 252));
         webView = new WebView(this);
@@ -53,6 +52,13 @@ public class MainActivity extends AppCompatActivity {
         setContentView(webView);
         WindowCompat.getInsetsController(getWindow(), webView).setAppearanceLightStatusBars(true);
         WindowCompat.getInsetsController(getWindow(), webView).setAppearanceLightNavigationBars(true);
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(webView, (view, windowInsets) -> {
+            androidx.core.graphics.Insets systemBars = windowInsets.getInsets(
+                    androidx.core.view.WindowInsetsCompat.Type.systemBars());
+            view.setPadding(0, systemBars.top, 0, systemBars.bottom);
+            return windowInsets;
+        });
+        androidx.core.view.ViewCompat.requestApplyInsets(webView);
 
         assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain("appassets.androidplatform.net")
