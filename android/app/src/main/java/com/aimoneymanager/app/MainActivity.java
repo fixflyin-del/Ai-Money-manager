@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.ConsoleMessage;
@@ -16,11 +15,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -34,9 +29,6 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "FixFlyMainActivity";
     private static final int RC_NATIVE_GOOGLE_SIGN_IN = 7401;
-
-    // The Android app always opens the deployed website. Web UI updates can then
-    // reach the app without rebuilding the APK/AAB.
     private static final String LIVE_WEB_APP_URL = "https://aimoneymanager.pro";
     private static final String LIVE_WEB_APP_HOST = "aimoneymanager.pro";
     private static final String LIVE_WEB_APP_WWW_HOST = "www.aimoneymanager.pro";
@@ -50,39 +42,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Android 15+ enforces edge-to-edge for apps targeting SDK 35+.
-        // Explicitly apply system-bar insets so the live WebView never draws
-        // interactive content underneath the status or navigation bars.
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        getWindow().setStatusBarColor(Color.TRANSPARENT);
-        getWindow().setNavigationBarColor(Color.TRANSPARENT);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            getWindow().setStatusBarContrastEnforced(false);
-            getWindow().setNavigationBarContrastEnforced(false);
-        }
-
+        // Use a non-edge-to-edge content layout. Let Android place the WebView
+        // below the status bar and above the navigation bar instead of relying
+        // on WebView CSS/padding to interpret system insets.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+        getWindow().setStatusBarColor(Color.rgb(248, 250, 252));
+        getWindow().setNavigationBarColor(Color.rgb(248, 250, 252));
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(248, 250, 252));
         setContentView(webView);
-
-        ViewCompat.setOnApplyWindowInsetsListener(webView, (view, windowInsets) -> {
-            Insets systemBars = windowInsets.getInsets(
-                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-            view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return windowInsets;
-        });
-        ViewCompat.requestApplyInsets(webView);
-
-        WindowInsetsControllerCompat insetsController =
-                WindowCompat.getInsetsController(getWindow(), webView);
-        insetsController.setAppearanceLightStatusBars(true);
-        insetsController.setAppearanceLightNavigationBars(true);
+        WindowCompat.getInsetsController(getWindow(), webView).setAppearanceLightStatusBars(true);
+        WindowCompat.getInsetsController(getWindow(), webView).setAppearanceLightNavigationBars(true);
 
         assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain("appassets.androidplatform.net")
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
-
         bridge = new MoneyFlowBridge(this, webView);
 
         WebSettings settings = webView.getSettings();
@@ -93,9 +68,6 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-
-        // Keep the existing native bridge for Android-only integrations.
-        // It is intended to be used only by the trusted first-party web app.
         webView.addJavascriptInterface(bridge, "MoneyFlowNative");
 
         webView.setWebChromeClient(new android.webkit.WebChromeClient() {
@@ -111,8 +83,6 @@ public class MainActivity extends AppCompatActivity {
             @Nullable
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                // Only serve bundled resources for the dedicated app-assets origin.
-                // Never substitute old bundled files for live website assets.
                 return assetLoader.shouldInterceptRequest(request.getUrl());
             }
 
@@ -120,20 +90,13 @@ public class MainActivity extends AppCompatActivity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 if (uri == null) return true;
-
                 String scheme = uri.getScheme();
                 String host = uri.getHost();
-
-                // Keep the trusted production website inside the app.
-                if ("https".equalsIgnoreCase(scheme)
-                        && host != null
+                if ("https".equalsIgnoreCase(scheme) && host != null
                         && (LIVE_WEB_APP_HOST.equalsIgnoreCase(host)
                         || LIVE_WEB_APP_WWW_HOST.equalsIgnoreCase(host))) {
                     return false;
                 }
-
-                // All other destinations (external websites, phone, email, etc.)
-                // are opened outside the app and cannot replace the trusted app page.
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, uri));
                 } catch (Exception e) {
@@ -165,9 +128,7 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
                 GoogleSignInOptions options = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                        .requestEmail()
-                        .requestIdToken(serverClientId)
-                        .build();
+                        .requestEmail().requestIdToken(serverClientId).build();
                 GoogleSignInClient client = GoogleSignIn.getClient(this, options);
                 startActivityForResult(client.getSignInIntent(), RC_NATIVE_GOOGLE_SIGN_IN);
             } catch (Exception e) {
@@ -236,6 +197,14 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (webView != null) {
+            webView.stopLoading();
+            webView.setWebChromeClient(null);
+            webView.setWebViewClient(null);
+            webView.removeJavascriptInterface("MoneyFlowNative");
+            webView.destroy();
+            webView = null;
+        }
         super.onDestroy();
     }
 }
