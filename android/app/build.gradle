@@ -10,8 +10,8 @@ android {
         applicationId "com.aimoneymanager.app"
         minSdk 24
         targetSdk 36
-        versionCode 22
-        versionName "6.2.2"
+        versionCode 23
+        versionName "6.2.3"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
