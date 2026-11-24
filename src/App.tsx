@@ -14,9 +14,15 @@ import { fetchLiveRates, getCachedRates, formatCurrency } from './services/curre
 import { CalculationService } from './services/calculationService';
 import { AuthService, auth } from './services/firebase';
 import { CloudFirestoreService } from './services/cloudFirestoreService';
+import { AndroidBridge } from './services/androidBridge';
 
 // Components
 import { SplashScreen } from './components/SplashScreen';
+import {
+  OnboardingWalkthrough,
+  hasCompletedOnboarding,
+  markOnboardingCompleted,
+} from './components/OnboardingWalkthrough';
 import { WelcomeModal } from './components/WelcomeModal';
 import { HeaderAndDrawer, NavTab } from './components/HeaderAndDrawer';
 import { DesktopSidebar } from './components/DesktopSidebar';
@@ -60,6 +66,9 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isVaultSyncing, setIsVaultSyncing] = useState(true);
   const [showSplash, setShowSplash] = useState(() => window.location.pathname !== '/admin');
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(
+    () => !hasCompletedOnboarding() && window.location.pathname !== '/admin'
+  );
 
   // App Data State
   const [profile, setProfile] = useState<UserProfile>(() => StorageService.getUserProfile());
@@ -100,6 +109,7 @@ export default function App() {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    AndroidBridge.setSystemBarTheme(isDark);
   }, []);
 
   // Clean up all active listeners
@@ -693,6 +703,17 @@ export default function App() {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
+  if (showOnboarding) {
+    return (
+      <OnboardingWalkthrough
+        onComplete={() => {
+          markOnboardingCompleted();
+          setShowOnboarding(false);
+        }}
+      />
+    );
+  }
+
   // Pre-load / Vault initialization screen to prevent race conditions or data flash
   if (!isAuthReady || isVaultSyncing) {
     return (
@@ -927,6 +948,10 @@ export default function App() {
               totalBalance={totalBalance}
               onUpdateProfile={handleUpdateProfile}
               onOpenGoogleSignIn={() => setIsWelcomeModalOpen(true)}
+              onReplayOnboarding={() => {
+                setShowOnboarding(true);
+                setShowSplash(true);
+              }}
             />
           )}
         </main>

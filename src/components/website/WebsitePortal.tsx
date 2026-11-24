@@ -353,7 +353,7 @@ export const WebsitePortal: React.FC<WebsitePortalProps> = ({
             <section className="relative overflow-hidden pt-12 md:pt-20 px-4 max-w-7xl mx-auto text-center space-y-6">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 text-xs font-bold shadow-xs">
                 <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-                <span>Fixfly Innovations Release · Version 6.2.0 Available</span>
+                <span>Fixfly Innovations Release · Version 6.2.2 Available</span>
               </div>
 
               <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-[#0B1528] dark:text-white tracking-tight max-w-4xl mx-auto leading-tight">
@@ -379,25 +379,25 @@ export const WebsitePortal: React.FC<WebsitePortalProps> = ({
 
                 <a
                   href="/download/apk"
-                  download="AI-Money-Manager-v6.2.0.apk"
+                  download="AI-Money-Manager-v6.2.2.apk"
                   className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Smartphone className="w-4 h-4" />
-                  <span>Download APK (v6.2.0)</span>
+                  <span>Download APK (v6.2.2)</span>
                 </a>
 
                 <a
                   href="/download/aab"
-                  download="AI-Money-Manager-v6.2.0.aab"
+                  download="AI-Money-Manager-v6.2.2.aab"
                   className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Play Store AAB (v6.2.0)</span>
+                  <span>Play Store AAB (v6.2.2)</span>
                 </a>
 
                 <a
                   href="/download/source"
-                  download="aimoneymanager-android-v6.2.0.zip"
+                  download="aimoneymanager-android-v6.2.2.zip"
                   className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm shadow-sm hover:shadow transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Download className="w-4 h-4 text-slate-400" />
@@ -1108,9 +1108,9 @@ export const WebsitePortal: React.FC<WebsitePortalProps> = ({
               <ul className="space-y-1.5 text-slate-600 dark:text-slate-400">
                 <li><button onClick={() => navigateTo('home')} className="hover:text-blue-600 cursor-pointer">Overview</button></li>
                 <li><button onClick={onLaunchApp} className="hover:text-blue-600 cursor-pointer font-semibold text-blue-600 dark:text-blue-400">Launch Web App</button></li>
-                <li><a href="/download/apk" download="AI-Money-Manager-v6.2.0.apk" className="hover:text-emerald-500 cursor-pointer font-medium text-emerald-600 dark:text-emerald-400">Download APK (v6.2.0)</a></li>
-                <li><a href="/download/aab" download="AI-Money-Manager-v6.2.0.aab" className="hover:text-purple-500 cursor-pointer font-medium text-purple-600 dark:text-purple-400">Play Store AAB (v6.2.0)</a></li>
-                <li><a href="/download/source" download="aimoneymanager-android-v6.2.0.zip" className="hover:text-blue-600 cursor-pointer">Android Source Project (ZIP)</a></li>
+                <li><a href="/download/apk" download="AI-Money-Manager-v6.2.2.apk" className="hover:text-emerald-500 cursor-pointer font-medium text-emerald-600 dark:text-emerald-400">Download APK (v6.2.2)</a></li>
+                <li><a href="/download/aab" download="AI-Money-Manager-v6.2.2.aab" className="hover:text-purple-500 cursor-pointer font-medium text-purple-600 dark:text-purple-400">Play Store AAB (v6.2.2)</a></li>
+                <li><a href="/download/source" download="aimoneymanager-android-v6.2.2.zip" className="hover:text-blue-600 cursor-pointer">Android Source Project (ZIP)</a></li>
                 <li><button onClick={() => navigateTo('help')} className="hover:text-blue-600 cursor-pointer">Help Center & FAQ</button></li>
               </ul>
             </div>
@@ -1148,7 +1148,7 @@ export const WebsitePortal: React.FC<WebsitePortalProps> = ({
               © 2026 Fixfly Innovations Pvt. Ltd. All rights reserved.
             </div>
             <div className="flex items-center gap-4">
-              <span className="font-mono">v6.2.0 (versionCode 20)</span>
+              <span className="font-mono">v6.2.2 (versionCode 22)</span>
               <span>•</span>
               <a href="https://aimoneymanager.pro" className="hover:underline">https://aimoneymanager.pro</a>
             </div>

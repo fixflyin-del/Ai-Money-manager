@@ -58,8 +58,8 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
 
   return (
     <>
-      {/* Top Global Header (Screenshots 1, 2, 4, 5, 7, 8) */}
-      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between shadow-2xs md:hidden">
+      {/* Top Global Header */}
+      <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 pt-[calc(0.625rem+env(safe-area-inset-top,0px))] pb-2.5 flex items-center justify-between shadow-2xs md:hidden">
         {/* Left: Hamburger & Main App Header Title */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
@@ -121,7 +121,7 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
           />
 
           {/* Drawer Panel */}
-          <div className="relative w-4/5 max-w-sm bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col justify-between p-5 overflow-y-auto z-10 animate-in slide-in-from-left duration-200 text-slate-900 dark:text-white">
+          <div className="relative w-4/5 max-w-sm bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col justify-between px-5 pt-[calc(1.25rem+env(safe-area-inset-top,0px))] pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] overflow-y-auto z-10 animate-in slide-in-from-left duration-200 text-slate-900 dark:text-white">
             {/* Top Header Section */}
             <div className="space-y-4">
               <div className="flex items-start justify-between">
@@ -314,7 +314,7 @@ export const HeaderAndDrawer: React.FC<HeaderAndDrawerProps> = ({
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1 font-semibold">
                 <span>AI Money Manager</span>
-                <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">v6.2.0</span>
+                <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">v6.2.2</span>
               </div>
               <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
                 <span>Fixfly Innovations</span>

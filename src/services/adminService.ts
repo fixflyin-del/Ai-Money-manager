@@ -111,7 +111,7 @@ export class AdminService {
       {
         id: 'push_001',
         title: 'AI Insights & Smart Budget Planning',
-        body: 'Explore Deep Smart Analysis and category budgets in AI Money Manager v6.2.0.',
+        body: 'Explore Deep Smart Analysis and category budgets in AI Money Manager v6.2.2.',
         targetAudience: 'all',
         sentAt: '2026-11-06 10:30 AM',
         deliveredCount: 4280,

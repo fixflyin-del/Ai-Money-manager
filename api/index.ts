@@ -82,10 +82,10 @@ app.use(
     setHeaders: (res, filePath) => {
       if (filePath.endsWith('.apk')) {
         res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-        res.setHeader('Content-Disposition', 'attachment; filename="AI-Money-Manager-v6.2.0.apk"');
+        res.setHeader('Content-Disposition', 'attachment; filename="AI-Money-Manager-v6.2.2.apk"');
       } else if (filePath.endsWith('.aab')) {
         res.setHeader('Content-Type', 'application/octet-stream');
-        res.setHeader('Content-Disposition', 'attachment; filename="AI-Money-Manager-v6.2.0.aab"');
+        res.setHeader('Content-Disposition', 'attachment; filename="AI-Money-Manager-v6.2.2.aab"');
       } else if (filePath.endsWith('.zip')) {
         res.setHeader('Content-Type', 'application/zip');
       }
@@ -95,27 +95,27 @@ app.use(
 
 // Dedicated direct download routes for users and Google Play release testers
 app.get('/download/apk', (_req: Request, res: Response) => {
-  const file = path.resolve(publicDir, 'AI-Money-Manager-v6.2.0.apk');
+  const file = path.resolve(publicDir, 'AI-Money-Manager-v6.2.2.apk');
   if (fs.existsSync(file)) {
-    res.download(file, 'AI-Money-Manager-v6.2.0.apk');
+    res.download(file, 'AI-Money-Manager-v6.2.2.apk');
   } else {
     res.status(404).send('APK artifact not found');
   }
 });
 
 app.get('/download/aab', (_req: Request, res: Response) => {
-  const file = path.resolve(publicDir, 'AI-Money-Manager-v6.2.0.aab');
+  const file = path.resolve(publicDir, 'AI-Money-Manager-v6.2.2.aab');
   if (fs.existsSync(file)) {
-    res.download(file, 'AI-Money-Manager-v6.2.0.aab');
+    res.download(file, 'AI-Money-Manager-v6.2.2.aab');
   } else {
     res.status(404).send('AAB artifact not found');
   }
 });
 
 app.get('/download/source', (_req: Request, res: Response) => {
-  const file = path.resolve(publicDir, 'aimoneymanager-android-v6.2.0.zip');
+  const file = path.resolve(publicDir, 'aimoneymanager-android-v6.2.2.zip');
   if (fs.existsSync(file)) {
-    res.download(file, 'aimoneymanager-android-v6.2.0.zip');
+    res.download(file, 'aimoneymanager-android-v6.2.2.zip');
   } else {
     res.status(404).send('Source zip artifact not found');
   }
@@ -130,7 +130,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
     service: 'AI Money Manager API',
     environment: process.env.NODE_ENV || 'production',
     timestamp: new Date().toISOString(),
-    version: '6.2.0',
+    version: '6.2.2',
     freeMode: true,
     billingEnabled: false,
     geminiConfigured: isGeminiConfigured(),
@@ -634,8 +634,8 @@ app.post('/api/admin/push-to-github', (req: Request, res: Response) => {
     execSync(`git push "${remoteUrl}" --tags --force`, { cwd: process.cwd(), stdio: 'pipe' });
     return res.json({
       success: true,
-      message: 'Successfully pushed release v6.2.0 to https://github.com/fixflyin-del/Ai-Money-manager.',
-      tag: 'v6.2.0',
+      message: 'Successfully pushed release v6.2.2 to https://github.com/fixflyin-del/Ai-Money-manager.',
+      tag: 'v6.2.2',
     });
   } catch (error: any) {
     console.error('Git push error:', error?.message);

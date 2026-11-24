@@ -511,7 +511,7 @@ export class StorageService {
       goals: this.getGoals(),
       recurring: this.getRecurringBills(),
       exportedAt: new Date().toISOString(),
-      version: '6.2.0',
+      version: '6.2.2',
     };
     return JSON.stringify(backup, null, 2);
   }

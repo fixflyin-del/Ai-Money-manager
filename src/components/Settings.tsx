@@ -650,13 +650,13 @@ export const Settings: React.FC<SettingsProps> = ({
                 ) : (
                   <>
                     <GitBranch className="w-4 h-4" />
-                    <span>Push & Deploy (v6.2.0)</span>
+                    <span>Push & Deploy (v6.2.2)</span>
                   </>
                 )}
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              Target repository: <span className="font-mono text-slate-400">https://github.com/fixflyin-del/Ai-Money-manager</span> (branch: main, tag: v6.2.0)
+              Target repository: <span className="font-mono text-slate-400">https://github.com/fixflyin-del/Ai-Money-manager</span> (branch: main, tag: v6.2.2)
             </p>
           </div>
 
@@ -667,7 +667,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 <Download className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Android Production Release Package (v6.2.0)</h3>
+                <h3 className="text-sm font-bold text-white">Android Production Release Package (v6.2.2)</h3>
                 <p className="text-xs text-slate-400">
                   Ready-to-build 100% Free Edition Android source package with synced assets and offline bundle.
                 </p>
@@ -677,25 +677,25 @@ export const Settings: React.FC<SettingsProps> = ({
             <div className="flex flex-wrap gap-3 pt-1">
               <a
                 href="/download/apk"
-                download="AI-Money-Manager-v6.2.0.apk"
+                download="AI-Money-Manager-v6.2.2.apk"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
               >
                 <Smartphone className="w-4 h-4" />
-                <span>Download Direct APK (v6.2.0)</span>
+                <span>Download Direct APK (v6.2.2)</span>
               </a>
 
               <a
                 href="/download/aab"
-                download="AI-Money-Manager-v6.2.0.aab"
+                download="AI-Money-Manager-v6.2.2.aab"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Download Play Store AAB (v6.2.0)</span>
+                <span>Download Play Store AAB (v6.2.2)</span>
               </a>
 
               <a
                 href="/download/source"
-                download="aimoneymanager-android-v6.2.0.zip"
+                download="aimoneymanager-android-v6.2.2.zip"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition shadow-sm cursor-pointer"
               >
                 <Download className="w-4 h-4" />

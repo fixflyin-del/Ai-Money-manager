@@ -4,8 +4,12 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -13,9 +17,14 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -32,7 +41,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String LIVE_WEB_APP_URL = "https://aimoneymanager.pro";
     private static final String LIVE_WEB_APP_HOST = "aimoneymanager.pro";
     private static final String LIVE_WEB_APP_WWW_HOST = "www.aimoneymanager.pro";
+    private static final int LIGHT_SYSTEM_BAR_BG = Color.rgb(255, 255, 255);
+    private static final int LIGHT_WEB_BG = Color.rgb(248, 250, 252);
+    private static final int DARK_SYSTEM_BAR_BG = Color.rgb(15, 23, 42);
+    private static final int DARK_WEB_BG = Color.rgb(11, 17, 32);
 
+    private FrameLayout rootContainer;
     private WebView webView;
     private WebViewAssetLoader assetLoader;
     private MoneyFlowBridge bridge;
@@ -42,23 +56,63 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Android 15+ enforces edge-to-edge for apps targeting SDK 35+.
-        // Explicitly inset WebView content so web UI stays below system bars.
+        // Android 15+ (targetSdk 35/36) enforces edge-to-edge layout.
+        // Chromium WebView ignores View.setPadding(), so we host WebView inside a
+        // full-bleed FrameLayout and apply systemBars + displayCutout + ime insets
+        // as LayoutParams margins on WebView, then consume the insets to prevent
+        // duplicate CSS safe-area padding inside the web viewport.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        getWindow().setStatusBarColor(Color.rgb(248, 250, 252));
-        getWindow().setNavigationBarColor(Color.rgb(248, 250, 252));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().getAttributes().layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            getWindow().getAttributes().layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
+
+        rootContainer = new FrameLayout(this);
+        rootContainer.setFitsSystemWindows(false);
+        rootContainer.setBackgroundColor(LIGHT_SYSTEM_BAR_BG);
+
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(248, 250, 252));
-        setContentView(webView);
-        WindowCompat.getInsetsController(getWindow(), webView).setAppearanceLightStatusBars(true);
-        WindowCompat.getInsetsController(getWindow(), webView).setAppearanceLightNavigationBars(true);
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(webView, (view, windowInsets) -> {
-            androidx.core.graphics.Insets systemBars = windowInsets.getInsets(
-                    androidx.core.view.WindowInsetsCompat.Type.systemBars());
-            view.setPadding(0, systemBars.top, 0, systemBars.bottom);
-            return windowInsets;
+        webView.setFitsSystemWindows(false);
+        webView.setBackgroundColor(LIGHT_WEB_BG);
+        FrameLayout.LayoutParams webViewParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        rootContainer.addView(webView, webViewParams);
+        setContentView(rootContainer);
+
+        applySystemBarAppearance(false);
+
+        ViewCompat.setOnApplyWindowInsetsListener(rootContainer, (view, windowInsets) -> {
+            Insets safeBars = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+
+            int leftInset = safeBars.left;
+            int topInset = safeBars.top;
+            int rightInset = safeBars.right;
+            int bottomInset = Math.max(safeBars.bottom, ime.bottom);
+
+            if (webView != null) {
+                ViewGroup.LayoutParams rawParams = webView.getLayoutParams();
+                if (rawParams instanceof FrameLayout.LayoutParams) {
+                    FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) rawParams;
+                    if (lp.leftMargin != leftInset
+                            || lp.topMargin != topInset
+                            || lp.rightMargin != rightInset
+                            || lp.bottomMargin != bottomInset) {
+                        lp.setMargins(leftInset, topInset, rightInset, bottomInset);
+                        webView.setLayoutParams(lp);
+                    }
+                }
+            }
+            return WindowInsetsCompat.CONSUMED;
         });
-        androidx.core.view.ViewCompat.requestApplyInsets(webView);
+
+        requestInsetsWhenAttached(rootContainer);
 
         assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain("appassets.androidplatform.net")
@@ -126,6 +180,61 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl(LIVE_WEB_APP_URL);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (rootContainer != null) {
+            ViewCompat.requestApplyInsets(rootContainer);
+        }
+    }
+
+    private void requestInsetsWhenAttached(View view) {
+        if (view.isAttachedToWindow()) {
+            ViewCompat.requestApplyInsets(view);
+        } else {
+            view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override
+                public void onViewAttachedToWindow(View v) {
+                    v.removeOnAttachStateChangeListener(this);
+                    ViewCompat.requestApplyInsets(v);
+                }
+
+                @Override
+                public void onViewDetachedFromWindow(View v) {
+                    // No-op
+                }
+            });
+        }
+    }
+
+    public void setSystemBarTheme(boolean isDark) {
+        runOnUiThread(() -> applySystemBarAppearance(isDark));
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applySystemBarAppearance(boolean isDark) {
+        int barColor = isDark ? DARK_SYSTEM_BAR_BG : LIGHT_SYSTEM_BAR_BG;
+        int webBgColor = isDark ? DARK_WEB_BG : LIGHT_WEB_BG;
+
+        if (rootContainer != null) {
+            rootContainer.setBackgroundColor(barColor);
+        }
+        if (webView != null) {
+            webView.setBackgroundColor(webBgColor);
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            getWindow().setStatusBarColor(barColor);
+            getWindow().setNavigationBarColor(barColor);
+        }
+
+        View anchor = rootContainer != null ? rootContainer : getWindow().getDecorView();
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), anchor);
+        if (controller != null) {
+            controller.setAppearanceLightStatusBars(!isDark);
+            controller.setAppearanceLightNavigationBars(!isDark);
+        }
+    }
+
     public void startNativeGoogleSignIn(String serverClientId) {
         runOnUiThread(() -> {
             try {
@@ -173,8 +282,14 @@ public class MainActivity extends AppCompatActivity {
             if (idToken != null) result.put("idToken", idToken);
             if (error != null) result.put("error", error);
             String json = result.toString();
-            webView.post(() -> webView.evaluateJavascript(
-                    "if(window.onNativeGoogleSignIn){window.onNativeGoogleSignIn(" + JSONObject.quote(json) + ");}", null));
+            if (webView != null) {
+                webView.post(() -> {
+                    if (webView != null) {
+                        webView.evaluateJavascript(
+                                "if(window.onNativeGoogleSignIn){window.onNativeGoogleSignIn(" + JSONObject.quote(json) + ");}", null);
+                    }
+                });
+            }
         } catch (Exception e) {
             Log.e(TAG, "Could not return native Google Sign-In result to WebView", e);
         }
@@ -192,10 +307,14 @@ public class MainActivity extends AppCompatActivity {
             Uri data = intent.getData();
             if ("aimoney".equalsIgnoreCase(data.getScheme()) && "oauth".equalsIgnoreCase(data.getHost())) {
                 String token = data.getQueryParameter("token");
-                if (token != null) {
+                if (token != null && webView != null) {
                     String safeToken = JSONObject.quote(token);
-                    webView.post(() -> webView.evaluateJavascript(
-                            "if(window.onAuthRedirect){window.onAuthRedirect(" + safeToken + ");}", null));
+                    webView.post(() -> {
+                        if (webView != null) {
+                            webView.evaluateJavascript(
+                                    "if(window.onAuthRedirect){window.onAuthRedirect(" + safeToken + ");}", null);
+                        }
+                    });
                 }
             }
         }
@@ -204,6 +323,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         if (webView != null) {
+            if (rootContainer != null) {
+                rootContainer.removeView(webView);
+            }
             webView.stopLoading();
             webView.setWebChromeClient(null);
             webView.setWebViewClient(null);
@@ -211,6 +333,7 @@ public class MainActivity extends AppCompatActivity {
             webView.destroy();
             webView = null;
         }
+        rootContainer = null;
         super.onDestroy();
     }
 }

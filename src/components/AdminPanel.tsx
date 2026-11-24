@@ -657,7 +657,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                 Deployment Architecture & AI Configuration
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Deployment architecture for Vercel, Google Play Console (v6.2.0), and Firebase + Gemini backend services.
+                Deployment architecture for Vercel, Google Play Console (v6.2.2), and Firebase + Gemini backend services.
               </p>
             </div>
 
@@ -689,7 +689,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Smartphone className="w-5 h-5 text-emerald-600" />
-                    <h4 className="text-xs font-bold text-slate-900">2. Google Play Console (Android v6.2.0)</h4>
+                    <h4 className="text-xs font-bold text-slate-900">2. Google Play Console (Android v6.2.2)</h4>
                   </div>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
                     No Billing SDK
@@ -697,7 +697,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
                   Signed <code className="font-mono">.aab</code> release build for{' '}
-                  <code className="bg-slate-200 px-1 rounded font-mono">com.aimoneymanager.app</code> (versionCode 20).
+                  <code className="bg-slate-200 px-1 rounded font-mono">com.aimoneymanager.app</code> (versionCode 22).
                 </p>
                 <div className="text-[11px] text-slate-500 space-y-1 pt-1">
                   <div>• Billing Status: <strong>Removed</strong> (Zero billing library or permission)</div>

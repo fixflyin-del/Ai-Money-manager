@@ -11,6 +11,7 @@ declare global {
       openExternalUrl: (url: string) => void;
       openAuthCustomTab: (url: string) => void;
       saveBase64File: (filename: string, mimeType: string, base64: string) => void;
+      setSystemBarTheme?: (isDark: boolean) => void;
     };
   }
 }
@@ -53,6 +54,16 @@ export class AndroidBridge {
       window.MoneyFlowNative.openAuthCustomTab(url);
     } else {
       window.open(url, '_blank');
+    }
+  }
+
+  static setSystemBarTheme(isDark: boolean): void {
+    try {
+      if (this.isAndroid() && typeof window.MoneyFlowNative?.setSystemBarTheme === 'function') {
+        window.MoneyFlowNative.setSystemBarTheme(isDark);
+      }
+    } catch {
+      // Ignore on older native builds without setSystemBarTheme
     }
   }
 

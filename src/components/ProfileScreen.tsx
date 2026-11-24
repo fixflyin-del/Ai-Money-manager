@@ -33,6 +33,7 @@ interface ProfileScreenProps {
   onUpdateProfile: (updated: UserProfile) => void;
   onOpenGoogleSignIn: () => void;
   onSignOut?: () => void;
+  onReplayOnboarding?: () => void;
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
@@ -43,6 +44,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onUpdateProfile,
   onOpenGoogleSignIn,
   onSignOut,
+  onReplayOnboarding,
 }) => {
   const prefCurrency = profile.preferredCurrency;
   const rates = getCachedRates();
@@ -526,6 +528,27 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </div>
         )}
       </div>
+
+      {/* 5. App Welcome Tour */}
+      {onReplayOnboarding && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-extrabold text-[#0B1528] dark:text-white">
+              App Welcome Tour
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              View the splash screen and 3-slide intro again.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onReplayOnboarding}
+            className="min-h-[44px] px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[#0B1528] dark:text-white text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            Replay Intro
+          </button>
+        </div>
+      )}
     </div>
   );
 };

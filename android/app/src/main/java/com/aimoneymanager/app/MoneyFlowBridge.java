@@ -48,6 +48,13 @@ public class MoneyFlowBridge {
     }
 
     @JavascriptInterface
+    public void setSystemBarTheme(boolean isDark) {
+        if (activity instanceof MainActivity) {
+            ((MainActivity) activity).setSystemBarTheme(isDark);
+        }
+    }
+
+    @JavascriptInterface
     public void openExternalUrl(String url) {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));

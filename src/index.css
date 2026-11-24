@@ -26,7 +26,6 @@
     background-color: var(--bg-page);
     color: var(--text-primary);
     -webkit-tap-highlight-color: transparent;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
@@ -54,3 +53,46 @@
 html.dark ::-webkit-scrollbar-thumb {
   background: #334155;
 }
+
+.font-display {
+  font-family: 'Plus Jakarta Sans', var(--font-sans);
+}
+
+@keyframes splashProgressFill {
+  0% {
+    transform: scaleX(0.08);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes slideReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-splash-progress {
+  transform-origin: left center;
+  animation: splashProgressFill 1.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-reveal {
+  animation: slideReveal 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-splash-progress,
+  .animate-slide-reveal {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
