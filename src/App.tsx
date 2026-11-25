@@ -36,7 +36,7 @@ import { AddTransactionModal } from './components/AddTransactionModal';
 import { PinLockModal } from './components/PinLockModal';
 import { AdminPanel } from './components/AdminPanel';
 import { WebsitePortal, WebsitePage } from './components/website/WebsitePortal';
-import { Sun, Moon, Loader2, Globe } from 'lucide-react';
+import { Sun, Moon, Loader2, Globe, Plus } from 'lucide-react';
 
 const VALID_WEBSITE_PATHS: WebsitePage[] = [
   'home',
@@ -885,7 +885,7 @@ export default function App() {
         </header>
 
         {/* Dynamic Screen View */}
-        <main className="flex-1 w-full pb-20 md:pb-8">
+        <main className="flex-1 w-full pb-20 md:pb-24">
           {activeTab === 'home' && (
             <HomeScreen
               profile={profile}
@@ -972,7 +972,19 @@ export default function App() {
         }}
       />
 
-      {/* 6. Mobile Bottom Navigation */}
+      {/* 6. Desktop Round Floating Add Transaction Button */}
+      <button
+        type="button"
+        onClick={() => setIsAddEntryModalOpen(true)}
+        aria-label="Add Transaction"
+        title="Add Transaction"
+        className="hidden md:flex fixed bottom-7 right-7 z-40 w-16 h-16 rounded-full bg-[#2563EB] hover:bg-blue-700 active:scale-95 text-white shadow-xl shadow-blue-600/35 ring-4 ring-white dark:ring-slate-900 flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+      >
+        <Plus className="w-6 h-6 stroke-[2.5] shrink-0" />
+        <span className="text-[11px] font-bold leading-none tracking-tight whitespace-nowrap">Add</span>
+      </button>
+
+      {/* 7. Mobile Bottom Navigation */}
       <BottomNav
         activeTab={activeTab}
         onTabChange={(tab) => {
